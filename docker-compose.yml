@@ -1,0 +1,114 @@
+# BRS to QA Automation Platform — Windows 11 (Docker Desktop) / Linux
+#   docker compose up -d      | docker compose down
+#   docker compose logs -f    | docker compose restart
+# Data survives restart: PostgreSQL → volume "pgdata", files → .\storage (bind mount)
+name: brs-qa
+
+x-app-env: &app-env
+  ENVIRONMENT: ${ENVIRONMENT:-production}
+  DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-brsqa}:${POSTGRES_PASSWORD:-brsqa_local_only}@postgres:5432/${POSTGRES_DB:-brsqa}
+  REDIS_URL: redis://redis:6379/0
+  STORAGE_ROOT: /data/storage
+  TASK_MODE: celery
+  RUNNER_URL: http://runner:8100
+  SECRET_KEY: ${SECRET_KEY:-}
+  RUNNER_TOKEN: ${RUNNER_TOKEN:-}
+  SESSION_MINUTES: ${SESSION_MINUTES:-30}
+  MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-50}
+  BIND_HOST: ${BIND_HOST:-127.0.0.1}
+  ALLOW_NETWORK_SHARING: ${ALLOW_NETWORK_SHARING:-false}
+  AI_MODE: ${AI_MODE:-rule}
+  CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+  CLAUDE_MODEL: ${CLAUDE_MODEL:-}
+  GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+  ENV_ALLOWLIST: ${ENV_ALLOWLIST:-https://sit.example.test,https://uat.example.test}
+  RUNNER_TIMEOUT_SEC: ${RUNNER_TIMEOUT_SEC:-120}
+  RUNNER_MAX_MEMORY_MB: ${RUNNER_MAX_MEMORY_MB:-1024}
+  RUNNER_MAX_OUTPUT_KB: ${RUNNER_MAX_OUTPUT_KB:-512}
+  SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin@12345}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-brsqa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-brsqa_local_only}
+      POSTGRES_DB: ${POSTGRES_DB:-brsqa}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-brsqa} -d ${POSTGRES_DB:-brsqa}"]
+      interval: 5s
+      retries: 20
+    networks: [internal]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+    networks: [internal]
+
+  backend:
+    build: { context: ., dockerfile: backend/Dockerfile }
+    restart: unless-stopped
+    environment: *app-env
+    volumes: ["./storage:/data/storage"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    # API is reached through the frontend proxy; published on localhost only (for /api/docs)
+    ports: ["127.0.0.1:${BACKEND_PORT:-8000}:8000"]
+    networks: [internal]
+
+  worker:
+    build: { context: ., dockerfile: worker/Dockerfile }
+    restart: unless-stopped
+    environment: *app-env
+    volumes: ["./storage:/data/storage"]
+    depends_on:
+      backend: { condition: service_healthy }
+    networks: [internal]
+
+  runner:
+    build: { context: ., dockerfile: automation-runner/Dockerfile }
+    restart: unless-stopped
+    environment:
+      RUNNER_TOKEN: ${RUNNER_TOKEN:-}
+      RUNNER_TOKEN_FILE: /run/brsqa/runner_token
+      RUNNER_TIMEOUT_SEC: ${RUNNER_TIMEOUT_SEC:-120}
+      RUNNER_MAX_MEMORY_MB: ${RUNNER_MAX_MEMORY_MB:-1024}
+      RUNNER_MAX_OUTPUT_KB: ${RUNNER_MAX_OUTPUT_KB:-512}
+      RUNNER_MAX_PARALLEL: "2"
+    volumes: ["./storage/secrets:/run/brsqa:ro"]   # only the shared runner token — no app secrets
+    read_only: true
+    tmpfs: ["/tmp:size=512m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    mem_limit: 2g
+    cpus: 2
+    networks: [internal, egress]   # egress lets generated API/UI tests reach SIT/UAT (allowlist enforced in app)
+
+  frontend:
+    build: { context: ., dockerfile: frontend/Dockerfile }
+    restart: unless-stopped
+    environment:
+      BACKEND_INTERNAL_URL: http://backend:8000
+    depends_on:
+      backend: { condition: service_healthy }
+    # BIND_HOST=127.0.0.1 (default) = only this PC. 0.0.0.0 = LAN sharing (requires ALLOW_NETWORK_SHARING=true; see SECURITY.md)
+    ports: ["${BIND_HOST:-127.0.0.1}:${APP_PORT:-3000}:3000"]
+    networks: [internal, egress]
+
+volumes:
+  pgdata:
+  redisdata:
+
+networks:
+  internal:
+  egress:

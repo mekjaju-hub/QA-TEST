@@ -1,0 +1,27 @@
+# secrets & local data
+.env
+storage/*
+!storage/.gitkeep
+!storage/*/
+storage/**/*
+!storage/**/.gitkeep
+.auth/
+*.session
+*.har
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+# node
+node_modules/
+frontend/.next/
+frontend/public/monaco/
+frontend/tsconfig.tsbuildinfo
+# test outputs / browsers
+test-results/
+playwright-report/
+.playwright-browsers/
+# OS / editor
+Thumbs.db
+.DS_Store

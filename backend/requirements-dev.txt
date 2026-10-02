@@ -1,0 +1,3 @@
+-r requirements.txt
+pytest==8.3.3   # same as automation-runner (pytest-playwright needs pytest<9)
+pyyaml==6.0.2

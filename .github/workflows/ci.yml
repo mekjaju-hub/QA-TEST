@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: brsqa, POSTGRES_PASSWORD: brsqa, POSTGRES_DB: brsqa_test }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U brsqa" --health-interval 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r backend/requirements-dev.txt -r automation-runner/requirements.txt
+      - name: Backend unit/API/permission/security tests (SQLite)
+        working-directory: backend
+        run: python -m pytest -q
+      - name: Backend tests on PostgreSQL + migration up/down
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: postgresql+psycopg2://brsqa:brsqa@localhost:5432/brsqa_test
+          TEST_POSTGRES_URL: postgresql+psycopg2://brsqa:brsqa@localhost:5432/brsqa_test
+        run: python -m pytest -q
+      - name: automation-runner tests
+        working-directory: automation-runner
+        run: python -m pytest -q
+      - name: worker tests
+        working-directory: worker
+        run: python -m pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r backend/requirements-dev.txt -r automation-runner/requirements.txt
+      - working-directory: frontend
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npx next build
+          npx playwright install --with-deps chromium
+          npx playwright test
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with: { name: e2e-report, path: storage/e2e }
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env && mkdir -p storage/secrets && chmod -R 777 storage   # containers run as non-root uid
+      - run: docker compose build
+      - name: Stack smoke (docker compose)
+        run: |
+          docker compose up -d
+          for i in $(seq 1 90); do curl -sf http://127.0.0.1:3000/api/health && break; sleep 2; done
+          pip install httpx
+          python scripts/stack_smoke.py --base http://127.0.0.1:3000
+          docker compose restart backend
+          for i in $(seq 1 90); do curl -sf http://127.0.0.1:3000/api/health && break; sleep 2; done
+          python scripts/stack_smoke.py --base http://127.0.0.1:3000
+      - if: always()
+        run: docker compose logs --no-color | tail -300

@@ -1,0 +1,8 @@
+.env
+.auth/
+__pycache__/
+.pytest_cache/
+reports/
+screenshots/
+*.session
+*.har

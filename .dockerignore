@@ -1,0 +1,13 @@
+**/node_modules
+**/.next
+**/__pycache__
+**/.pytest_cache
+**/*.pyc
+storage
+.git
+.vscode
+01_conversation
+03_web_app
+05_docs
+frontend/public/monaco
+**/.env

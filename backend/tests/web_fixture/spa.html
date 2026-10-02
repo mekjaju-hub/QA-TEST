@@ -1,0 +1,19 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Swag Practice</title></head>
+<body><div class="login_logo">Swag Practice</div>
+<form id="f"><input id="user-name" name="user-name" placeholder="Username" data-test="username">
+<input id="password" name="password" type="password" placeholder="Password" data-test="password">
+<div class="err"></div><input type="submit" id="login-button" value="Login"></form>
+<div class="login_credentials"><h4>Accepted usernames are:</h4>standard_user</div>
+<script>
+// Like saucedemo: the URL changes first, the next page renders ~1.5 s later
+document.getElementById('f').addEventListener('submit', function (e) {
+  e.preventDefault();
+  var ok = document.getElementById('user-name').value === 'standard_user' && document.getElementById('password').value === 'practice-pass';
+  if (!ok) { document.querySelector('.err').innerHTML = '<h3 data-test="error">Epic sadface: Username and password do not match</h3>'; return; }
+  history.pushState({}, '', '/inventory.html');
+  setTimeout(function () {
+    document.body.innerHTML = '<header><nav><a href="/spa.html?all">All Items</a> <a href="/spa.html?about">About</a></nav></header>'
+      + '<h2>Products</h2><button type="button">Add to cart</button><a href="/spa.html" id="logout_sidebar_link">Logout</a>';
+  }, 1500);
+});
+</script></body></html>

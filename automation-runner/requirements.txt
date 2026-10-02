@@ -1,0 +1,9 @@
+fastapi==0.142.2
+uvicorn[standard]==0.46.0
+# what generated test projects need inside the sandbox
+pytest==8.3.3
+pytest-html==4.1.1
+python-dotenv==1.0.1
+requests==2.32.3
+playwright==1.56.0
+pytest-playwright==0.7.1

@@ -1,0 +1,101 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Setup: Python venv + dependencies",
+      "type": "shell",
+      "command": "python -m venv .venv; .\\.venv\\Scripts\\python -m pip install -r backend\\requirements-dev.txt -r automation-runner\\requirements.txt",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Setup: Frontend npm install",
+      "type": "shell",
+      "command": "npm install",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "problemMatcher": []
+    },
+    {
+      "label": "DB: migrate (alembic upgrade head)",
+      "type": "shell",
+      "command": "..\\.venv\\Scripts\\python -m alembic upgrade head",
+      "options": { "cwd": "${workspaceFolder}/backend", "env": { "DATABASE_URL": "sqlite:///${workspaceFolder}/storage/dev.sqlite3" } },
+      "problemMatcher": []
+    },
+    {
+      "label": "DB: seed admin + demo",
+      "type": "shell",
+      "command": "..\\.venv\\Scripts\\python -m app.seed",
+      "options": { "cwd": "${workspaceFolder}/backend", "env": { "DATABASE_URL": "sqlite:///${workspaceFolder}/storage/dev.sqlite3", "TASK_MODE": "sync" } },
+      "dependsOn": "DB: migrate (alembic upgrade head)",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: backend (pytest)",
+      "type": "shell",
+      "command": "..\\.venv\\Scripts\\python -m pytest -q",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: automation-runner",
+      "type": "shell",
+      "command": "..\\.venv\\Scripts\\python -m pytest -q",
+      "options": { "cwd": "${workspaceFolder}/automation-runner" },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: frontend (typecheck + vitest)",
+      "type": "shell",
+      "command": "npm run typecheck; npm test",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "group": "test",
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "Test: E2E (Playwright)",
+      "type": "shell",
+      "command": "npx next build; npx playwright install chromium; $env:PYTHON='..\\.venv\\Scripts\\python.exe'; npx playwright test",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: compose up -d",
+      "type": "shell",
+      "command": "docker compose up -d --build",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: compose logs -f",
+      "type": "shell",
+      "command": "docker compose logs -f",
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: compose restart",
+      "type": "shell",
+      "command": "docker compose restart",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: compose down",
+      "type": "shell",
+      "command": "docker compose down",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Open app in browser",
+      "type": "shell",
+      "command": "Start-Process http://localhost:3000",
+      "problemMatcher": []
+    }
+  ]
+}

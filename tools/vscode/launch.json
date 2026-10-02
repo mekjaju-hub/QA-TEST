@@ -1,0 +1,75 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backend: FastAPI (dev, SQLite, inline jobs)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--host", "127.0.0.1", "--port", "8000", "--reload"],
+      "cwd": "${workspaceFolder}/backend",
+      "env": { "TASK_MODE": "inline", "DATABASE_URL": "sqlite:///${workspaceFolder}/storage/dev.sqlite3", "RUNNER_URL": "", "STORAGE_ROOT": "${workspaceFolder}/storage" },
+      "envFile": "${workspaceFolder}/.env",
+      "justMyCode": true
+    },
+    {
+      "name": "Frontend: Next.js dev (http://localhost:3000)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev",
+      "cwd": "${workspaceFolder}/frontend",
+      "env": { "BACKEND_INTERNAL_URL": "http://127.0.0.1:8000" }
+    },
+    {
+      "name": "Worker: Celery (needs Redis)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "celery",
+      "args": ["-A", "worker.celery_app", "worker", "--loglevel=INFO", "--pool=solo"],
+      "cwd": "${workspaceFolder}/worker",
+      "env": { "PYTHONPATH": "${workspaceFolder}/backend;${workspaceFolder}/worker", "TASK_MODE": "celery", "STORAGE_ROOT": "${workspaceFolder}/storage" },
+      "envFile": "${workspaceFolder}/.env"
+    },
+    {
+      "name": "Runner: automation-runner service (:8100)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["runner.service:app", "--host", "127.0.0.1", "--port", "8100"],
+      "cwd": "${workspaceFolder}/automation-runner",
+      "env": { "RUNNER_TOKEN_FILE": "${workspaceFolder}/storage/secrets/runner_token" }
+    },
+    {
+      "name": "Runner: Headed exploration (Playwright)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "runner.explore",
+      "args": ["--url", "${input:exploreUrl}"],
+      "cwd": "${workspaceFolder}/automation-runner",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Backend: pytest current file",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["${file}", "-q"],
+      "cwd": "${workspaceFolder}/backend",
+      "justMyCode": false
+    },
+    {
+      "name": "Seed database (admin + demo project)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "app.seed",
+      "cwd": "${workspaceFolder}/backend",
+      "env": { "DATABASE_URL": "sqlite:///${workspaceFolder}/storage/dev.sqlite3", "TASK_MODE": "sync", "STORAGE_ROOT": "${workspaceFolder}/storage" }
+    }
+  ],
+  "compounds": [
+    { "name": "Full stack (dev): Backend + Frontend", "configurations": ["Backend: FastAPI (dev, SQLite, inline jobs)", "Frontend: Next.js dev (http://localhost:3000)"], "stopAll": true }
+  ],
+  "inputs": [
+    { "id": "exploreUrl", "type": "promptString", "description": "Base URL (SIT/UAT เท่านั้น)", "default": "https://sit.example.test" }
+  ]
+}

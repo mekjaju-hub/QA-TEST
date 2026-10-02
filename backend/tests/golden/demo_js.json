@@ -1,0 +1,666 @@
+{
+ "sections": [
+  {
+   "title": "1. ข้อมูลทั่วไป",
+   "text": "ระบบ Customer Activity Monitoring (CAM) ใช้ติดตามธุรกรรมของลูกค้าเพื่อรายงานต่อฝ่าย Compliance ข้อมูลทั้งหมดในเอกสารนี้เป็นข้อมูลสมมติ (Synthetic)"
+  },
+  {
+   "title": "2. Rule 3 ธุรกรรมมูลค่าสูง",
+   "text": "- ระบบต้องแสดงรายการลูกค้าที่มียอดรวมธุรกรรมมากกว่าหรือเท่ากับ 200,000 บาท ย้อนหลัง 14 วัน ในรายงาน High Value Alert\n- ระบบต้องไม่นำรายการกองทุน PVD มารวมในการคำนวณยอดรวมธุรกรรมของรายงาน High Value Alert\n- เจ้าหน้าที่Compliance ต้องสามารถ Export รายงาน High Value Alert เป็นไฟล์ CSV"
+  },
+  {
+   "title": "3. Rule 4 Transaction Monthly Report",
+   "text": "- ระบบต้องแสดงรายการลูกค้าที่มียอดรวมธุรกรรมมากกว่า 200,000 บาท ย้อนหลัง 14 วัน ในรายงาน High Value Alert\n- ระบบต้องคำนวณยอดรวมรายเดือนของลูกค้าแต่ละราย และแสดงใน Customer Transaction Monthly Report\n- ระบบต้องประมวลผลรายงานอย่างรวดเร็วและเหมาะสม"
+  },
+  {
+   "title": "4. Rule 5 Validation หน้าจอค้นหาลูกค้า",
+   "text": "- ฟิลด์ Customer ID เป็นฟิลด์บังคับ ระบบต้องแสดงข้อความ \"กรุณาระบุ Customer ID\" เมื่อผู้ใช้ไม่กรอก หากค่าว่างให้แสดงข้อความเดียวกัน\n- เจ้าหน้าที่Compliance ต้องกรอกหมายเหตุได้ความยาวไม่เกิน 200 ตัวอักษร และระบบต้องแสดงข้อความ \"หมายเหตุยาวเกินกำหนด\" เมื่อเกิน หากค่าว่างให้บันทึกได้"
+  },
+  {
+   "title": "5. Rule 6 Customer API",
+   "text": "- เมื่อเรียก API GET /customers/{id}/transactions ด้วย Customer ID ที่มีอยู่ ระบบต้องตอบกลับ HTTP 200 พร้อมรายการธุรกรรมในรูปแบบ JSON ให้เจ้าหน้าที่Compliance"
+  }
+ ],
+ "requirements": [
+  {
+   "reqId": "REQ-CAM-RULE3-001",
+   "type": "Report Requirement",
+   "module": "RULE3",
+   "title": "ระบบต้องแสดงรายการลูกค้าที่มียอดรวมธุรกรรมมากกว่าหรือเท่ากับ 200,000 บาท ย้อนหลัง 14 วัน ใ",
+   "fields": {
+    "businessRule": "- ระบบต้องแสดงรายการลูกค้าที่มียอดรวมธุรกรรมมากกว่าหรือเท่ากับ 200,000 บาท ย้อนหลัง 14 วัน ในรายงาน High Value Alert",
+    "preconditions": "NOT_FOUND",
+    "input": "ยอดรวมธุรกรรมมากกว่าหรือเท่ากับ 200,000 บาท ย้อนหลัง 14 วัน ในรายงาน High Value Alert",
+    "process": "รวมธุรกรรมมากกว่าหรือเท่ากับ 200,000 บาท ย้อนหลัง 14 วัน ในรายงาน High Value Alert",
+    "output": "แสดงรายการลูกค้าที่มียอดรวมธุรกรรมมากกว่าหรือเท่ากับ 200,000 บาท ย้อนหลัง 14 วัน ในรายงาน High Value Ale",
+    "expected": "แสดงรายการลูกค้าที่มียอดรวมธุรกรรมมากกว่าหรือเท่ากับ 200,000 บาท ย้อนหลัง 14 วัน ในรายงาน High Value Alert",
+    "role": "NOT_FOUND",
+    "threshold": ">= 200000",
+    "thresholdRaw": "มากกว่าหรือเท่ากับ 200,000 บาท",
+    "thresholdOp": ">=",
+    "thresholdValue": "200000",
+    "thresholdAmbiguous": false,
+    "unit": "บาท",
+    "dateRange": "ย้อนหลัง 14 วัน",
+    "inclusion": "NOT_FOUND",
+    "exclusion": "NOT_FOUND"
+   },
+   "completeness": 85,
+   "clarity": 80,
+   "clarityReasons": [
+    "ไม่ระบุว่าเป็น Calendar Day หรือ Business Day (-10)",
+    "ไม่ระบุ Inclusive/Exclusive ของช่วงวันที่ (-5)",
+    "ไม่ระบุการปัดเศษ (-5)"
+   ],
+   "status": "CONFLICT",
+   "questions": [
+    "role",
+    "daytype",
+    "dateinclusive",
+    "rounding"
+   ],
+   "duplicateOf": null
+  },
+  {
+   "reqId": "REQ-CAM-RULE3-002",
+   "type": "Report Requirement",
+   "module": "RULE3",
+   "title": "ระบบต้องไม่นำรายการกองทุน PVD มารวมในการคำนวณยอดรวมธุรกรรมของรายงาน High Value Alert",
+   "fields": {
+    "businessRule": "NOT_FOUND",
+    "preconditions": "NOT_FOUND",
+    "input": "ยอดรวมธุรกรรมของรายงาน High Value Alert",
+    "process": "รวมในการคำนวณยอดรวมธุรกรรมของรายงาน High Value Alert",
+    "output": "รายงาน High Value Alert",
+    "expected": "ไม่นำรายการกองทุน PVD มารวมในการคำนวณยอดรวมธุรกรรมของรายงาน High Value Alert",
+    "role": "NOT_FOUND",
+    "threshold": "NOT_FOUND",
+    "thresholdRaw": "NOT_FOUND",
+    "thresholdOp": "NOT_FOUND",
+    "thresholdValue": "NOT_FOUND",
+    "thresholdAmbiguous": false,
+    "unit": "NOT_FOUND",
+    "dateRange": "NOT_FOUND",
+    "inclusion": "NOT_FOUND",
+    "exclusion": "ไม่นำรายการกองทุน PVD มารวมในการคำนวณยอดรวมธุรกรรมของรายงาน High Value Alert"
+   },
+   "completeness": 67,
+   "clarity": 100,
+   "clarityReasons": [
+    "ไม่พบคำกำกวมหรือเงื่อนไขที่ขาด"
+   ],
+   "status": "NEEDS_CLARIFICATION",
+   "questions": [
+    "role"
+   ],
+   "duplicateOf": null
+  },
+  {
+   "reqId": "REQ-CAM-RULE3-003",
+   "type": "Report Requirement",
+   "module": "RULE3",
+   "title": "เจ้าหน้าที่Compliance ต้องสามารถ Export รายงาน High Value Alert เป็นไฟล์ CSV",
+   "fields": {
+    "businessRule": "NOT_FOUND",
+    "preconditions": "NOT_FOUND",
+    "input": "NOT_FOUND",
+    "process": "NOT_FOUND",
+    "output": "Export รายงาน High Value Alert เป็นไฟล์ CSV",
+    "expected": "สามารถ Export รายงาน High Value Alert เป็นไฟล์ CSV",
+    "role": "เจ้าหน้าที่Compliance",
+    "threshold": "NOT_FOUND",
+    "thresholdRaw": "NOT_FOUND",
+    "thresholdOp": "NOT_FOUND",
+    "thresholdValue": "NOT_FOUND",
+    "thresholdAmbiguous": false,
+    "unit": "NOT_FOUND",
+    "dateRange": "NOT_FOUND",
+    "inclusion": "NOT_FOUND",
+    "exclusion": "NOT_FOUND"
+   },
+   "completeness": 67,
+   "clarity": 100,
+   "clarityReasons": [
+    "ไม่พบคำกำกวมหรือเงื่อนไขที่ขาด"
+   ],
+   "status": "WAITING_FOR_REVIEW",
+   "questions": [],
+   "duplicateOf": null
+  },
+  {
+   "reqId": "REQ-CAM-RULE4-001",
+   "type": "Report Requirement",
+   "module": "RULE4",
+   "title": "ระบบต้องแสดงรายการลูกค้าที่มียอดรวมธุรกรรมมากกว่า 200,000 บาท ย้อนหลัง 14 วัน ในรายงาน Hig",
+   "fields": {
+    "businessRule": "- ระบบต้องแสดงรายการลูกค้าที่มียอดรวมธุรกรรมมากกว่า 200,000 บาท ย้อนหลัง 14 วัน ในรายงาน High Value Alert",
+    "preconditions": "NOT_FOUND",
+    "input": "ยอดรวมธุรกรรมมากกว่า 200,000 บาท ย้อนหลัง 14 วัน ในรายงาน High Value Alert",
+    "process": "รวมธุรกรรมมากกว่า 200,000 บาท ย้อนหลัง 14 วัน ในรายงาน High Value Alert",
+    "output": "แสดงรายการลูกค้าที่มียอดรวมธุรกรรมมากกว่า 200,000 บาท ย้อนหลัง 14 วัน ในรายงาน High Value Alert",
+    "expected": "แสดงรายการลูกค้าที่มียอดรวมธุรกรรมมากกว่า 200,000 บาท ย้อนหลัง 14 วัน ในรายงาน High Value Alert",
+    "role": "NOT_FOUND",
+    "threshold": "> 200000",
+    "thresholdRaw": "มากกว่า 200,000 บาท",
+    "thresholdOp": ">",
+    "thresholdValue": "200000",
+    "thresholdAmbiguous": false,
+    "unit": "บาท",
+    "dateRange": "ย้อนหลัง 14 วัน",
+    "inclusion": "NOT_FOUND",
+    "exclusion": "NOT_FOUND"
+   },
+   "completeness": 85,
+   "clarity": 80,
+   "clarityReasons": [
+    "ไม่ระบุว่าเป็น Calendar Day หรือ Business Day (-10)",
+    "ไม่ระบุ Inclusive/Exclusive ของช่วงวันที่ (-5)",
+    "ไม่ระบุการปัดเศษ (-5)"
+   ],
+   "status": "CONFLICT",
+   "questions": [
+    "role",
+    "daytype",
+    "dateinclusive",
+    "rounding"
+   ],
+   "duplicateOf": null
+  },
+  {
+   "reqId": "REQ-CAM-RULE4-002",
+   "type": "Report Requirement",
+   "module": "RULE4",
+   "title": "ระบบต้องคำนวณยอดรวมรายเดือนของลูกค้าแต่ละราย และแสดงใน Customer Transaction Monthly Report",
+   "fields": {
+    "businessRule": "NOT_FOUND",
+    "preconditions": "NOT_FOUND",
+    "input": "ยอดรวมรายเดือนของลูกค้าแต่ละราย และแสดงใน Customer Transaction Monthly Report",
+    "process": "คำนวณยอดรวมรายเดือนของลูกค้าแต่ละราย และแสดงใน Customer Transaction Monthly Report",
+    "output": "แสดงใน Customer Transaction Monthly Report",
+    "expected": "คำนวณยอดรวมรายเดือนของลูกค้าแต่ละราย และแสดงใน Customer Transaction Monthly Report",
+    "role": "NOT_FOUND",
+    "threshold": "NOT_FOUND",
+    "thresholdRaw": "NOT_FOUND",
+    "thresholdOp": "NOT_FOUND",
+    "thresholdValue": "NOT_FOUND",
+    "thresholdAmbiguous": false,
+    "unit": "NOT_FOUND",
+    "dateRange": "NOT_FOUND",
+    "inclusion": "NOT_FOUND",
+    "exclusion": "NOT_FOUND"
+   },
+   "completeness": 59,
+   "clarity": 85,
+   "clarityReasons": [
+    "ไม่ระบุว่าเป็น Calendar Day หรือ Business Day (-10)",
+    "ไม่ระบุ Inclusive/Exclusive ของช่วงวันที่ (-5)"
+   ],
+   "status": "NEEDS_CLARIFICATION",
+   "questions": [
+    "role",
+    "daytype",
+    "dateinclusive"
+   ],
+   "duplicateOf": null
+  },
+  {
+   "reqId": "REQ-CAM-RULE4-003",
+   "type": "Report Requirement",
+   "module": "RULE4",
+   "title": "ระบบต้องประมวลผลรายงานอย่างรวดเร็วและเหมาะสม",
+   "fields": {
+    "businessRule": "NOT_FOUND",
+    "preconditions": "NOT_FOUND",
+    "input": "NOT_FOUND",
+    "process": "NOT_FOUND",
+    "output": "รายงานอย่างรวดเร็วและเหมาะสม",
+    "expected": "NOT_FOUND",
+    "role": "NOT_FOUND",
+    "threshold": "NOT_FOUND",
+    "thresholdRaw": "NOT_FOUND",
+    "thresholdOp": "NOT_FOUND",
+    "thresholdValue": "NOT_FOUND",
+    "thresholdAmbiguous": false,
+    "unit": "NOT_FOUND",
+    "dateRange": "NOT_FOUND",
+    "inclusion": "NOT_FOUND",
+    "exclusion": "NOT_FOUND"
+   },
+   "completeness": 13,
+   "clarity": 80,
+   "clarityReasons": [
+    "ใช้คำกำกวม: รวดเร็ว, เหมาะสม (-20)"
+   ],
+   "status": "NEEDS_CLARIFICATION",
+   "questions": [
+    "expected",
+    "role",
+    "vague",
+    "vague"
+   ],
+   "duplicateOf": null
+  },
+  {
+   "reqId": "REQ-CAM-RULE5-001",
+   "type": "Field Requirement",
+   "module": "RULE5",
+   "title": "ฟิลด์ Customer ID เป็นฟิลด์บังคับ ระบบต้องแสดงข้อความ \"กรุณาระบุ Customer ID\" เมื่อผู้ใช้ไ",
+   "fields": {
+    "businessRule": "- ฟิลด์ Customer ID เป็นฟิลด์บังคับ ระบบต้องแสดงข้อความ \"กรุณาระบุ Customer ID\" เมื่อผู้ใช้ไม่กรอก หากค่าว่างให้แสดงข้อความเดียวกัน",
+    "preconditions": "เมื่อผู้ใช้ไม่กรอก หากค่าว่างให้แสดงข้อความเดียวกัน",
+    "input": "ฟิลด์ Customer ID เป็นฟิลด์บังคับ ระบบต้องแสดงข้อความ \"กรุณาระบุ Customer ID\" เมื่อผู",
+    "process": "NOT_FOUND",
+    "output": "แสดงข้อความ \"กรุณาระบุ Customer ID\" เมื่อผู้ใช้ไม่กรอก หากค่าว่างให้แสดงข้อความเดียวกัน",
+    "expected": "แสดงข้อความ \"กรุณาระบุ Customer ID\" เมื่อผู้ใช้ไม่กรอก หากค่าว่างให้แสดงข้อความเดียวกัน",
+    "role": "NOT_FOUND",
+    "threshold": "NOT_FOUND",
+    "thresholdRaw": "NOT_FOUND",
+    "thresholdOp": "NOT_FOUND",
+    "thresholdValue": "NOT_FOUND",
+    "thresholdAmbiguous": false,
+    "unit": "NOT_FOUND",
+    "dateRange": "NOT_FOUND",
+    "inclusion": "NOT_FOUND",
+    "exclusion": "NOT_FOUND"
+   },
+   "completeness": 100,
+   "clarity": 100,
+   "clarityReasons": [
+    "ไม่พบคำกำกวมหรือเงื่อนไขที่ขาด"
+   ],
+   "status": "WAITING_FOR_REVIEW",
+   "questions": [],
+   "duplicateOf": null
+  },
+  {
+   "reqId": "REQ-CAM-RULE5-002",
+   "type": "Validation Rule",
+   "module": "RULE5",
+   "title": "เจ้าหน้าที่Compliance ต้องกรอกหมายเหตุได้ความยาวไม่เกิน 200 ตัวอักษร และระบบต้องแสดงข้อควา",
+   "fields": {
+    "businessRule": "- เจ้าหน้าที่Compliance ต้องกรอกหมายเหตุได้ความยาวไม่เกิน 200 ตัวอักษร และระบบต้องแสดงข้อความ \"หมายเหตุยาวเกินกำหนด\" เมื่อเกิน หากค่าว่างให้บันทึกได้",
+    "preconditions": "เมื่อเกิน หากค่าว่างให้บันทึกได้",
+    "input": "กรอกหมายเหตุได้ความยาวไม่เกิน 200 ตัวอักษร และระบบต้องแสดงข้อความ \"หมายเหตุยาวเกินกำ",
+    "process": "NOT_FOUND",
+    "output": "แสดงข้อความ \"หมายเหตุยาวเกินกำหนด\" เมื่อเกิน หากค่าว่างให้บันทึกได้",
+    "expected": "กรอกหมายเหตุได้ความยาวไม่เกิน 200 ตัวอักษร และระบบต้องแสดงข้อความ \"หมายเหตุยาวเกินกำหนด\" เมื่อเกิน หากค่าว่างให้บันทึกได้",
+    "role": "เจ้าหน้าที่Compliance",
+    "threshold": "<= 200",
+    "thresholdRaw": "ไม่เกิน 200 ตัวอักษร",
+    "thresholdOp": "<=",
+    "thresholdValue": "200",
+    "thresholdAmbiguous": false,
+    "unit": "ตัวอักษร",
+    "dateRange": "NOT_FOUND",
+    "inclusion": "NOT_FOUND",
+    "exclusion": "NOT_FOUND"
+   },
+   "completeness": 100,
+   "clarity": 100,
+   "clarityReasons": [
+    "ไม่พบคำกำกวมหรือเงื่อนไขที่ขาด"
+   ],
+   "status": "WAITING_FOR_REVIEW",
+   "questions": [],
+   "duplicateOf": null
+  },
+  {
+   "reqId": "REQ-CAM-RULE6-001",
+   "type": "API Requirement",
+   "module": "RULE6",
+   "title": "เมื่อเรียก API GET /customers/{id}/transactions ด้วย Customer ID ที่มีอยู่ ระบบต้องตอบกลับ",
+   "fields": {
+    "businessRule": "- เมื่อเรียก API GET /customers/{id}/transactions ด้วย Customer ID ที่มีอยู่ ระบบต้องตอบกลับ HTTP 200 พร้อมรายการธุรกรรมในรูปแบบ JSON ให้เจ้าหน้าที่Compliance",
+    "preconditions": "เมื่อเรียก API GET /customers/{id}/transactions ด้วย Customer ID ที่มีอยู่ ระบบต้องตอบกลับ HTTP 200 พร้อมรายการธุรกรรมในรูปแบ",
+    "input": "transactions ด้วย Customer ID ที่มีอยู่ ระบบต้องตอบกลับ HTTP 200 พร้อมรายการธุรกรรมในรูปแบบ",
+    "process": "NOT_FOUND",
+    "output": "NOT_FOUND",
+    "expected": "ตอบกลับ HTTP 200 พร้อมรายการธุรกรรมในรูปแบบ JSON ให้เจ้าหน้าที่Compliance",
+    "role": "เจ้าหน้าที่Compliance",
+    "threshold": "NOT_FOUND",
+    "thresholdRaw": "NOT_FOUND",
+    "thresholdOp": "NOT_FOUND",
+    "thresholdValue": "NOT_FOUND",
+    "thresholdAmbiguous": false,
+    "unit": "NOT_FOUND",
+    "dateRange": "NOT_FOUND",
+    "inclusion": "NOT_FOUND",
+    "exclusion": "NOT_FOUND"
+   },
+   "completeness": 87,
+   "clarity": 100,
+   "clarityReasons": [
+    "ไม่พบคำกำกวมหรือเงื่อนไขที่ขาด"
+   ],
+   "status": "WAITING_FOR_REVIEW",
+   "questions": [],
+   "duplicateOf": null
+  }
+ ],
+ "conflicts": [
+  {
+   "a": "REQ-CAM-RULE3-001",
+   "b": "REQ-CAM-RULE4-001",
+   "similarity": 100,
+   "diffs": [
+    {
+     "field": "Operator (> vs >=)",
+     "a": ">=",
+     "b": ">"
+    }
+   ]
+  }
+ ],
+ "boundaries": [
+  {
+   "reqId": "REQ-CAM-RULE3-001",
+   "rows": [
+    {
+     "value": "199,999.99",
+     "raw": 199999.99,
+     "expected": "ไม่เข้าเงื่อนไข",
+     "origin": "Derived Boundary",
+     "note": "ต่ำกว่า Boundary"
+    },
+    {
+     "value": "200,000.00",
+     "raw": 200000,
+     "expected": "เข้าเงื่อนไข",
+     "origin": "BRS Explicit Rule",
+     "note": "เท่ากับ Boundary"
+    },
+    {
+     "value": "200,000.01",
+     "raw": 200000.01,
+     "expected": "เข้าเงื่อนไข",
+     "origin": "Derived Boundary",
+     "note": "สูงกว่า Boundary"
+    },
+    {
+     "value": "0.00",
+     "raw": 0,
+     "expected": "ไม่เข้าเงื่อนไข",
+     "origin": "Derived Boundary",
+     "note": "ค่าศูนย์"
+    },
+    {
+     "value": "(ว่าง)",
+     "raw": "",
+     "expected": "Validation Error",
+     "origin": "AI Recommendation",
+     "note": "ค่าว่าง",
+     "label": "AI RECOMMENDED TEST - NOT EXPLICITLY DEFINED IN BRS"
+    },
+    {
+     "value": "\"ABC\"",
+     "raw": "ABC",
+     "expected": "Invalid Data Type",
+     "origin": "AI Recommendation",
+     "note": "ชนิดข้อมูลผิด",
+     "label": "AI RECOMMENDED TEST - NOT EXPLICITLY DEFINED IN BRS"
+    }
+   ],
+   "types": [
+    "Positive",
+    "Boundary",
+    "Data"
+   ],
+   "pr": {
+    "priority": "Critical",
+    "risk": "High",
+    "reasons": [
+     "เกี่ยวข้องกับจำนวนเงิน (+2 ผลกระทบ)",
+     "เกี่ยวข้องกับข้อมูลลูกค้า (+1 ผลกระทบ)",
+     "มี Threshold/ช่วงวันที่ ซึ่งมักเกิด Off-by-one (+2 โอกาสผิดพลาด)",
+     "Boundary Test มีโอกาสพบ Defect สูง (+1)"
+    ],
+    "impact": 3,
+    "likelihood": 3
+   }
+  },
+  {
+   "reqId": "REQ-CAM-RULE3-002",
+   "rows": null,
+   "types": [
+    "Positive",
+    "Negative",
+    "Data"
+   ],
+   "pr": {
+    "priority": "Medium",
+    "risk": "Low",
+    "reasons": [
+     "เกี่ยวข้องกับจำนวนเงิน (+2 ผลกระทบ)",
+     "Boundary Test มีโอกาสพบ Defect สูง (+1)"
+    ],
+    "impact": 2,
+    "likelihood": 1
+   }
+  },
+  {
+   "reqId": "REQ-CAM-RULE3-003",
+   "rows": null,
+   "types": [
+    "Positive",
+    "Negative",
+    "Data"
+   ],
+   "pr": {
+    "priority": "Medium",
+    "risk": "Low",
+    "reasons": [
+     "เกี่ยวข้องกับ Compliance/กฎระเบียบ (+2 ผลกระทบ)",
+     "Boundary Test มีโอกาสพบ Defect สูง (+1)"
+    ],
+    "impact": 2,
+    "likelihood": 1
+   }
+  },
+  {
+   "reqId": "REQ-CAM-RULE4-001",
+   "rows": [
+    {
+     "value": "199,999.99",
+     "raw": 199999.99,
+     "expected": "ไม่เข้าเงื่อนไข",
+     "origin": "Derived Boundary",
+     "note": "ต่ำกว่า Boundary"
+    },
+    {
+     "value": "200,000.00",
+     "raw": 200000,
+     "expected": "ไม่เข้าเงื่อนไข",
+     "origin": "BRS Explicit Rule",
+     "note": "เท่ากับ Boundary"
+    },
+    {
+     "value": "200,000.01",
+     "raw": 200000.01,
+     "expected": "เข้าเงื่อนไข",
+     "origin": "Derived Boundary",
+     "note": "สูงกว่า Boundary"
+    },
+    {
+     "value": "0.00",
+     "raw": 0,
+     "expected": "ไม่เข้าเงื่อนไข",
+     "origin": "Derived Boundary",
+     "note": "ค่าศูนย์"
+    },
+    {
+     "value": "(ว่าง)",
+     "raw": "",
+     "expected": "Validation Error",
+     "origin": "AI Recommendation",
+     "note": "ค่าว่าง",
+     "label": "AI RECOMMENDED TEST - NOT EXPLICITLY DEFINED IN BRS"
+    },
+    {
+     "value": "\"ABC\"",
+     "raw": "ABC",
+     "expected": "Invalid Data Type",
+     "origin": "AI Recommendation",
+     "note": "ชนิดข้อมูลผิด",
+     "label": "AI RECOMMENDED TEST - NOT EXPLICITLY DEFINED IN BRS"
+    }
+   ],
+   "types": [
+    "Positive",
+    "Boundary",
+    "Data"
+   ],
+   "pr": {
+    "priority": "Critical",
+    "risk": "High",
+    "reasons": [
+     "เกี่ยวข้องกับจำนวนเงิน (+2 ผลกระทบ)",
+     "เกี่ยวข้องกับข้อมูลลูกค้า (+1 ผลกระทบ)",
+     "มี Threshold/ช่วงวันที่ ซึ่งมักเกิด Off-by-one (+2 โอกาสผิดพลาด)",
+     "Boundary Test มีโอกาสพบ Defect สูง (+1)"
+    ],
+    "impact": 3,
+    "likelihood": 3
+   }
+  },
+  {
+   "reqId": "REQ-CAM-RULE4-002",
+   "rows": null,
+   "types": [
+    "Positive",
+    "Data"
+   ],
+   "pr": {
+    "priority": "High",
+    "risk": "Medium",
+    "reasons": [
+     "เกี่ยวข้องกับจำนวนเงิน (+2 ผลกระทบ)",
+     "เกี่ยวข้องกับข้อมูลลูกค้า (+1 ผลกระทบ)",
+     "Boundary Test มีโอกาสพบ Defect สูง (+1)"
+    ],
+    "impact": 3,
+    "likelihood": 1
+   }
+  },
+  {
+   "reqId": "REQ-CAM-RULE4-003",
+   "rows": null,
+   "types": [
+    "Positive",
+    "Data"
+   ],
+   "pr": {
+    "priority": "Low",
+    "risk": "Low",
+    "reasons": [
+     "Boundary Test มีโอกาสพบ Defect สูง (+1)"
+    ],
+    "impact": 0,
+    "likelihood": 1
+   }
+  },
+  {
+   "reqId": "REQ-CAM-RULE5-001",
+   "rows": null,
+   "types": [
+    "Positive",
+    "Negative"
+   ],
+   "pr": {
+    "priority": "Medium",
+    "risk": "Low",
+    "reasons": [
+     "เกี่ยวข้องกับข้อมูลลูกค้า (+1 ผลกระทบ)",
+     "Boundary Test มีโอกาสพบ Defect สูง (+1)"
+    ],
+    "impact": 1,
+    "likelihood": 1
+   }
+  },
+  {
+   "reqId": "REQ-CAM-RULE5-002",
+   "rows": [
+    {
+     "value": "199",
+     "raw": 199,
+     "expected": "เข้าเงื่อนไข",
+     "origin": "Derived Boundary",
+     "note": "ต่ำกว่า Boundary"
+    },
+    {
+     "value": "200",
+     "raw": 200,
+     "expected": "เข้าเงื่อนไข",
+     "origin": "BRS Explicit Rule",
+     "note": "เท่ากับ Boundary"
+    },
+    {
+     "value": "201",
+     "raw": 201,
+     "expected": "ไม่เข้าเงื่อนไข",
+     "origin": "Derived Boundary",
+     "note": "สูงกว่า Boundary"
+    },
+    {
+     "value": "0",
+     "raw": 0,
+     "expected": "เข้าเงื่อนไข",
+     "origin": "Derived Boundary",
+     "note": "ค่าศูนย์"
+    },
+    {
+     "value": "(ว่าง)",
+     "raw": "",
+     "expected": "Validation Error",
+     "origin": "AI Recommendation",
+     "note": "ค่าว่าง",
+     "label": "AI RECOMMENDED TEST - NOT EXPLICITLY DEFINED IN BRS"
+    },
+    {
+     "value": "\"ABC\"",
+     "raw": "ABC",
+     "expected": "Invalid Data Type",
+     "origin": "AI Recommendation",
+     "note": "ชนิดข้อมูลผิด",
+     "label": "AI RECOMMENDED TEST - NOT EXPLICITLY DEFINED IN BRS"
+    }
+   ],
+   "types": [
+    "Positive",
+    "Boundary",
+    "Negative"
+   ],
+   "pr": {
+    "priority": "High",
+    "risk": "Medium",
+    "reasons": [
+     "เกี่ยวข้องกับ Compliance/กฎระเบียบ (+2 ผลกระทบ)",
+     "มี Threshold/ช่วงวันที่ ซึ่งมักเกิด Off-by-one (+2 โอกาสผิดพลาด)",
+     "Boundary Test มีโอกาสพบ Defect สูง (+1)"
+    ],
+    "impact": 2,
+    "likelihood": 3
+   }
+  },
+  {
+   "reqId": "REQ-CAM-RULE6-001",
+   "rows": null,
+   "types": [
+    "Positive",
+    "Negative",
+    "API"
+   ],
+   "pr": {
+    "priority": "High",
+    "risk": "Medium",
+    "reasons": [
+     "เกี่ยวข้องกับ Compliance/กฎระเบียบ (+2 ผลกระทบ)",
+     "เกี่ยวข้องกับข้อมูลลูกค้า (+1 ผลกระทบ)",
+     "มี Dependency กับระบบอื่น (+1 โอกาสผิดพลาด)",
+     "Boundary Test มีโอกาสพบ Defect สูง (+1)"
+    ],
+    "impact": 3,
+    "likelihood": 2
+   }
+  }
+ ]
+}

@@ -1,0 +1,16 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8"><title>Practice Login</title></head>
+<body><h1>ระบบตัวอย่าง</h1>
+<form id="f"><label for="u">ชื่อผู้ใช้</label><input id="u" name="u" required>
+<label for="p">รหัสผ่าน</label><input id="p" name="p" type="password" required>
+<button type="submit">เข้าสู่ระบบ</button><div role="alert" id="err"></div></form>
+<script>
+document.getElementById('f').addEventListener('submit', function (e) {
+  e.preventDefault();
+  if (document.getElementById('u').value === 'demo' && document.getElementById('p').value === 'demo-pass-1') {
+    history.pushState({}, '', '/home');
+    document.body.innerHTML = '<nav><a href="/index.html">หน้าแรก</a> <a href="/index.html?r=1">รายงาน</a></nav><h1>แดชบอร์ด</h1>'
+      + '<button id="lo" type="button">ออกจากระบบ</button>';
+    document.getElementById('lo').onclick = function () { location.href = '/index.html'; };
+  } else { document.getElementById('err').textContent = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'; }
+});
+</script></body></html>
