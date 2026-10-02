@@ -19,7 +19,7 @@ type HistTC = {
 type HistExpl = { id: string; at: string; by: string; status: number | null; tc: number; new_tc: number; login: string; last_run?: Record<string, number>; deleted?: boolean };
 type History = { key: string; page: string; url: string; title: string; created_at: string; updated_at: string; explorations: HistExpl[]; test_cases: HistTC[] };
 
-const KIND: Record<string, string> = { page: "หน้าเว็บ", login: "Login", home: "หลัง Login", field: "ช่องกรอก" };
+const KIND: Record<string, string> = { page: "หน้าเว็บ", login: "Login", home: "หลัง Login", field: "ช่องกรอก", click: "การกด (Click Explore)" };
 
 export default function WebHistoryPage() {
   const { can } = useAuth();
@@ -34,7 +34,7 @@ export default function WebHistoryPage() {
 
   const rows = useMemo(() => (h?.test_cases ?? []).filter(t =>
     (!filter.q || `${t.hid} ${t.title} ${t.expected}`.toLowerCase().includes(filter.q.toLowerCase())) &&
-    (!filter.kind || t.sig.startsWith(filter.kind + ".")) &&
+    (!filter.kind || t.sig.startsWith(filter.kind + ".") || t.sig.startsWith(filter.kind + ":")) &&
     (!filter.result || (filter.result === "none" ? !t.last_result : t.last_result === filter.result))), [h, filter]);
 
   if (!can("auto.view")) return <AppShell crumbs={[["Web History"]]}><div className="err-box">ไม่มีสิทธิ์ดูหน้านี้</div></AppShell>;
@@ -90,7 +90,7 @@ export default function WebHistoryPage() {
               <tr key={t.sig}>
                 <td className="mono small">{t.hid}</td>
                 <td><b>{t.title}</b>{t.needs_login && <><br /><span className="badge b-orange">ต้อง Login</span></>}</td>
-                <td className="small">{KIND[t.sig.split(".")[0]] ?? "-"}<br /><span className="muted">{t.type} · {t.priority}</span></td>
+                <td className="small">{KIND[t.sig.split(/[.:]/)[0]] ?? "-"}<br /><span className="muted">{t.type} · {t.priority}</span></td>
                 <td className="small"><ol style={{ margin: 0, paddingLeft: 16 }}>{t.steps.map((s, i) => <li key={i}>{s}</li>)}</ol></td>
                 <td className="small">{t.expected}</td>
                 <td className="small">{fmtDate(t.first_seen)}<br /><Link className="mono" href={`/web-explorer?id=${t.first_exploration}`}>{t.first_exploration}</Link></td>
@@ -118,12 +118,12 @@ export default function WebHistoryPage() {
 }
 
 function Stats({ tcs }: { tcs: HistTC[] }) {
-  const by = (k: string) => tcs.filter(t => t.sig.startsWith(k + ".")).length;
+  const by = (k: string) => tcs.filter(t => t.sig.startsWith(k + ".") || t.sig.startsWith(k + ":")).length;
   const ran = tcs.filter(t => t.last_result);
   return (
     <div className="grid g4" style={{ margin: "12px 0" }}>
       <div className="kpi card"><div className="v">{tcs.length}</div><div className="k">Test Case สะสม</div></div>
-      <div className="kpi card"><div className="v">{by("page")} / {by("login")} / {by("home")} / {by("field")}</div><div className="k">หน้าเว็บ / Login / หลัง Login / ช่องกรอก</div></div>
+      <div className="kpi card"><div className="v">{by("page")} / {by("login")} / {by("home")} / {by("field")} / {by("click")}</div><div className="k">หน้าเว็บ / Login / หลัง Login / ช่องกรอก / การกด</div></div>
       <div className="kpi card"><div className="v">{ran.filter(t => t.last_result === "PASSED").length} / {ran.length}</div><div className="k">ผ่าน / เคยรัน</div></div>
       <div className="kpi card"><div className="v">{ran.filter(t => t.last_result === "FAILED").length}</div><div className="k">ไม่ผ่านในรอบล่าสุด (ควรตรวจ)</div></div>
     </div>

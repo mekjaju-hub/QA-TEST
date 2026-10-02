@@ -33,6 +33,8 @@ class ExploreIn(BaseModel):
     username: str | None = Field(default=None, max_length=200)
     password: str | None = Field(default=None, max_length=200)
     extra: int = Field(default=5, ge=0, le=30, description="จำนวน Test Case แบบใหม่ที่ยังไม่เคยออกแบบให้หน้านี้")
+    click_explore: bool = Field(default=False, description="กดปุ่ม/ลิงก์ที่ปลอดภัยเพื่อดูว่าเกิดอะไรขึ้น")
+    max_clicks: int = Field(default=10, ge=1, le=20)
 
 
 class WebRunIn(BaseModel):
@@ -66,7 +68,8 @@ def _summary(d: dict) -> dict:
 @router.post("/web-explorer")
 def explore(body: ExploreIn, p: Principal = Depends(require("auto.generate")), db: Session = Depends(get_db)):
     shots: dict = {}
-    r = wx.explore(body.url, username=body.username or None, password=body.password or None, shots=shots)
+    r = wx.explore(body.url, username=body.username or None, password=body.password or None, shots=shots,
+                   click_explore=body.click_explore, max_clicks=body.max_clicks)
     # page history: design only test cases this page has not had before, give each a page-scoped ID (WP-001 …)
     h = wh.for_url(r["url"])
     known = wh.known_sigs(h)
@@ -111,7 +114,8 @@ def get_exploration(eid: str, p: Principal = Depends(require("auto.view"))):
 
 @router.get("/web-explorer/{eid}/screenshot/{which}")
 def screenshot(eid: str, which: str, p: Principal = Depends(require("auto.view"))):
-    if which not in ("before", "after"):
+    import re as _re
+    if not (which in ("before", "after") or _re.fullmatch(r"click_\d{1,2}", which)):
         raise AppError("NOT_FOUND", "ไม่พบภาพ", status=404)
     st = get_storage()
     k = _key(eid, f"{which}.png")

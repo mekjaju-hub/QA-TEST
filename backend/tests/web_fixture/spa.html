@@ -5,15 +5,28 @@
 <div class="err"></div><input type="submit" id="login-button" value="Login"></form>
 <div class="login_credentials"><h4>Accepted usernames are:</h4>standard_user</div>
 <script>
-// Like saucedemo: the URL changes first, the next page renders ~1.5 s later
-document.getElementById('f').addEventListener('submit', function (e) {
+// Like saucedemo: the URL changes first, the next page renders ~1.5 s later; the session lives in localStorage
+function inventory() {
+  document.body.innerHTML = '<header><nav><a href="/spa.html?all">All Items</a> <a href="/spa.html?about">About</a>'
+    + ' <a href="/checkout-step-one.html">Checkout</a></nav><span id="badge"></span></header>'
+    + '<h2>Products</h2><button type="button" id="add">Add to cart</button>'
+    + '<button type="button" id="menu">Open Menu</button><button type="button" id="hello">Say hello</button>'
+    + '<button type="button" id="pay">Pay now</button><button type="button" id="sync">Sync list</button>'
+    + '<button type="button" id="noop">Nothing</button><a href="/spa.html" id="logout_sidebar_link">Logout</a>';
+  document.getElementById('add').onclick = function () { this.textContent = 'Remove item'; document.getElementById('badge').textContent = 'Items in cart: 1'; };
+  document.getElementById('menu').onclick = function () { var d = document.createElement('div'); d.setAttribute('role', 'dialog'); d.textContent = 'Menu panel'; document.body.appendChild(d); };
+  document.getElementById('hello').onclick = function () { alert('Hello tester'); };
+  document.getElementById('pay').onclick = function () { document.body.innerHTML = '<h1>PAID!</h1>'; };
+  document.getElementById('sync').onclick = function () { fetch('/api/sync', { method: 'POST', body: '{}' }).catch(function () {}); document.getElementById('badge').textContent = 'Syncing list'; };
+  document.getElementById('logout_sidebar_link').onclick = function () { localStorage.removeItem('u'); };
+}
+if (location.pathname === '/inventory.html' && localStorage.getItem('u')) { inventory(); }
+document.getElementById('f') && document.getElementById('f').addEventListener('submit', function (e) {
   e.preventDefault();
   var ok = document.getElementById('user-name').value === 'standard_user' && document.getElementById('password').value === 'practice-pass';
   if (!ok) { document.querySelector('.err').innerHTML = '<h3 data-test="error">Epic sadface: Username and password do not match</h3>'; return; }
+  localStorage.setItem('u', '1');
   history.pushState({}, '', '/inventory.html');
-  setTimeout(function () {
-    document.body.innerHTML = '<header><nav><a href="/spa.html?all">All Items</a> <a href="/spa.html?about">About</a></nav></header>'
-      + '<h2>Products</h2><button type="button">Add to cart</button><a href="/spa.html" id="logout_sidebar_link">Logout</a>';
-  }, 1500);
+  setTimeout(inventory, 1500);
 });
 </script></body></html>

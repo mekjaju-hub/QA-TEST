@@ -9,7 +9,7 @@ import json
 import re
 from urllib.parse import urljoin, urlparse
 
-from .web_explorer import ALERT_SEL, LOGOUT_RX
+from .web_explorer import ALERT_SEL, LOGOUT_RX, MODAL_SEL
 
 PIN_REQUIREMENTS = "pytest==8.3.3\npytest-playwright==0.7.1\nplaywright==1.56.0\npython-dotenv==1.0.1\n"
 
@@ -216,6 +216,36 @@ def build(r: dict, *, history_sigs: set[str] | None = None, extra_limit: int = 5
         if len(t3) > 6:
             files["tests/test_03_after_login.py"] = "\n".join(t3).rstrip() + "\n"
 
+    # ---------------------------------------------------------------- Click Explore → behaviour tests (what really happened after a click)
+    clicks = r.get("clicks") or {}
+    behave = [x for x in clicks.get("items", []) if x.get("clicked") and x.get("changed") and _click_assertion(x)]
+    if behave:
+        logged = bool(clicks.get("logged_in"))
+        t5 = ["import re", "", "import pytest", "from playwright.sync_api import Page, expect", "",
+              f"START_URL = {q(clicks['start_url'])}  # หน้าที่เริ่มกดตอนสำรวจ", f"MODAL = {q(MODAL_SEL)}", "", "",
+              "def block_writes(page: Page):",
+              '    """กันไม่ให้ Test ส่งข้อมูลไปเปลี่ยนอะไรบน server (ยกเลิก POST/PUT/PATCH/DELETE) — เหมือนตอนสำรวจ"""',
+              "    page.route(\"**/*\", lambda route: route.continue_() if route.request.method in (\"GET\", \"HEAD\", \"OPTIONS\") else route.abort())",
+              "", ""]
+        for i, x in enumerate(behave[:15], 1):
+            id_ = f"TC-CLICK-{i:02d}"
+            func = f"test_tc_click_{i:02d}_{_slug(x['label'])}"
+            kind_th = "ปุ่ม" if x["kind"] == "button" else "ลิงก์"
+            what, code = _click_assertion(x)
+            sig = f"click:{x['kind']}:{x['label'][:60]}"
+            tc(id_, f"กด{kind_th} \"{x['label']}\" แล้ว{what}", "Behavior",
+               (["Login ด้วยบัญชีที่ถูกต้อง"] if logged else []) + [f"เปิด {clicks['start_url']}", f"กด{kind_th} \"{x['label']}\""],
+               x["summary"], "เห็นตอนกดสำรวจ (ดูภาพในแท็บ ①)", func, "tests/test_05_clicks.py", needs_login=logged, sig=sig,
+               priority="Medium")
+            hid = hid_map.get(sig)
+            t5 += ["@pytest.mark.smoke" if not logged else "@pytest.mark.login",
+                   f"def {func}({'logged_in_page: Page' if logged else 'page: Page'}):",
+                   f'    """{id_}{f" [{hid}]" if hid else ""}: ' + _doc("กด" + kind_th + " '" + x["label"] + "' แล้ว" + what) + '"""',
+                   *(["    page = logged_in_page"] if logged else []),
+                   "    page.goto(START_URL)", "    block_writes(page)",
+                   *("    " + c for c in code(loc_code(x["locator"]))), "", ""]
+        files["tests/test_05_clicks.py"] = "\n".join(t5).rstrip() + "\n"
+
     # ---------------------------------------------------------------- extra designs (never repeat what this page already has)
     cands = _extra_candidates(r, has_login)
     if include_sigs is not None:
@@ -234,7 +264,7 @@ def build(r: dict, *, history_sigs: set[str] | None = None, extra_limit: int = 5
                needs_login=c.get("needs_login", False), priority=c.get("priority", "Medium"), sig=c["sig"])
             hid = hid_map.get(c["sig"])
             t4 += [*(f"@pytest.mark.{m}" for m in c.get("marks", [])), f"def {func}({c['args']}):",
-                   f'    """{id_}{f" [{hid}]" if hid else ""}: {c["title"]}"""', *("    " + line for line in c["body"]), "", ""]
+                   f'    """{id_}{f" [{hid}]" if hid else ""}: ' + _doc(c["title"]) + '"""', *("    " + line for line in c["body"]), "", ""]
         files["tests/test_04_more.py"] = "\n".join(t4).rstrip() + "\n"
 
     # ---------------------------------------------------------------- project scaffolding
@@ -425,3 +455,34 @@ def _extra_candidates(r: dict, has_login: bool) -> list[dict]:
             ["page.goto(site_url)", f"field = {loc}", "field.fill(\"a\" * 300)", "value = field.input_value()",
              "assert 0 < len(value) <= 300  # มี maxlength ตัดให้สั้นลงก็ถือว่าปกติ", "expect(field).to_be_visible()"])
     return out
+
+
+def _click_assertion(x: dict):
+    """Pick the clearest observable effect of a click → (Thai description, code builder) or None."""
+    if x.get("new_tab"):
+        return None  # new tabs are noted in observations only
+    if x.get("url_changed"):
+        u = urlparse(x["url_after"])
+        target = (u.path or "/") + (("?" + u.query) if u.query else "") + (("#" + u.fragment) if u.fragment else "")
+        return (f"ไปหน้า {target}", lambda loc: [f"{loc}.click()", f"expect(page).to_have_url(re.compile({q(re.escape(target))}))"])
+    if x.get("modal_opened"):
+        return ("มีหน้าต่างเปิดขึ้นมา", lambda loc: [f"{loc}.click()", "expect(page.locator(MODAL).first).to_be_visible()"])
+    if x.get("js_dialogs"):
+        msg = x["js_dialogs"][0]
+        return ("มีกล่องข้อความเด้งขึ้น", lambda loc: [
+            "messages = []", "page.on(\"dialog\", lambda d: (messages.append(d.message), d.dismiss()))  # กด Cancel เสมอ",
+            f"{loc}.click()", "page.wait_for_timeout(1000)", f"assert messages and messages[0] == {q(msg)}"])
+    good = [t for t in x.get("added", []) if 2 <= len(t) <= 60 and re.search(r"[A-Za-zก-๙]", t)]
+    if good:
+        t = good[0]
+        return (f"เห็นข้อความ \"{t[:30]}\"", lambda loc: [f"{loc}.click()", f"expect(page.get_by_text({q(t)}, exact=True).first).to_be_visible()"])
+    gone = [t for t in x.get("removed", []) if 2 <= len(t) <= 60 and re.search(r"[A-Za-zก-๙]", t)]
+    if gone:
+        t = gone[0]
+        return (f"ข้อความ \"{t[:30]}\" หายไป", lambda loc: [f"{loc}.click()", f"expect(page.get_by_text({q(t)}, exact=True)).to_have_count(0)"])
+    return None
+
+
+def _doc(text: str) -> str:
+    """Safe text inside a triple-quoted docstring (labels may contain quotes or backslashes)."""
+    return text.replace("\\", "/").replace('"', "'")

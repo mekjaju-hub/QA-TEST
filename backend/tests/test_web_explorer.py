@@ -133,12 +133,12 @@ def test_page_history_accumulates_without_duplicates(client, admin, site):
     assert len(hids) == len(set(hids)) and det["test_cases"][0]["designed"] == 2
     # a run updates the history results
     run = client.post(f"/api/web-explorer/{r2['id']}/run", headers=admin, json={"username": "standard_user", "password": "practice-pass"}).json()
-    # the practice site keeps no session, so "refresh keeps session" is expected to FAIL — extra designs can find real issues
-    assert run["summary"]["total"] >= len(r2["test_cases"]) and run["error_code"] is None, run["stdout"][-2000:]
+    # the practice site keeps its session in localStorage, so every generated test — base, extra and click — passes
+    assert run["status"] == "PASSED" and run["summary"]["total"] >= len(r2["test_cases"]), run["stdout"][-2000:]
     det = client.get(f"/api/web-history/{r1['history_key']}", headers=admin).json()
     results = {t["sig"]: t.get("last_result") for t in det["test_cases"]}
     assert results["login.valid"] == "PASSED"
-    assert results.get("home.refresh_keeps_session") in (None, "FAILED")
+    assert results.get("home.refresh_keeps_session") in (None, "PASSED")
     # ZIP with every accumulated TC + CSV export
     z = client.get(f"/api/web-history/{r1['history_key']}/zip", headers=admin)
     import io
@@ -148,3 +148,33 @@ def test_page_history_accumulates_without_duplicates(client, admin, site):
     assert all(h in md for h in hids)
     csv = client.get(f"/api/web-history/{r1['history_key']}/csv", headers=admin)
     assert csv.status_code == 200 and "WP-001" in csv.text
+
+
+@needs_browser
+def test_click_explore_only_safe_clicks_and_behaviour_tests_pass(site):
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "automation-runner"))
+    from runner import sandbox
+    spa = site.replace("index.html", "spa.html")
+    shots = {}
+    r = wx.explore(spa, username="standard_user", password="practice-pass", shots=shots, click_explore=True, max_clicks=10)
+    c = r["clicks"]
+    assert c["logged_in"] and c["start_url"].endswith("/inventory.html")
+    by = {x["label"]: x for x in c["items"]}
+    for unsafe in ("Pay now", "Checkout", "Logout"):           # payment / checkout / logout are never clicked
+        assert not by[unsafe]["clicked"] and "ไม่ปลอดภัย" in by[unsafe]["reason"]
+    assert by["Add to cart"]["clicked"] and "Items in cart: 1" in by["Add to cart"]["added"]
+    assert by["Open Menu"]["modal_opened"]
+    assert by["Say hello"]["js_dialogs"] == ["Hello tester"]
+    assert by["About"]["url_changed"]
+    assert by["Sync list"]["blocked_writes"] >= 1 and c["blocked_writes"] >= 1   # POST was cancelled
+    assert not by["Nothing"]["changed"]
+    assert {f"click_{x['n']}" for x in c["items"] if x.get("clicked")} <= set(shots)
+    obs = wx.observations(r)
+    assert any("กด \"Add to cart\"" in o for o in obs)
+    gen = web_testgen.build(r, extra_limit=0)
+    clicks = [t for t in gen["test_cases"] if t["id"].startswith("TC-CLICK")]
+    assert {t["sig"] for t in clicks} >= {"click:button:Add to cart", "click:button:Open Menu", "click:button:Say hello", "click:link:About"}
+    lim = sandbox.Limits(timeout_sec=240, cpu_sec=400, memory_mb=1024, limit_address_space=False, max_procs=4096)
+    out = sandbox.run_pytest(gen["files"], lim, test_env={"BASE_URL": spa, "LOGIN_USER": "standard_user", "LOGIN_PASS": "practice-pass"})
+    assert out.status == "PASSED", out.stdout[-4000:] + out.stderr[-1500:]

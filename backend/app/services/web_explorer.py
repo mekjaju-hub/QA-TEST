@@ -159,7 +159,7 @@ def _login_parts(snap: dict) -> tuple[dict | None, dict | None, dict | None]:
 
 
 def explore(url: str, *, username: str | None = None, password: str | None = None, shots: dict | None = None,
-            timeout_ms: int = 30000) -> dict:
+            timeout_ms: int = 30000, click_explore: bool = False, max_clicks: int = 10) -> dict:
     """Open url, snapshot, optionally log in once. `shots` receives PNG bytes {'before': .., 'after': ..}."""
     url = check_url(url)
     try:
@@ -210,6 +210,12 @@ def explore(url: str, *, username: str | None = None, password: str | None = Non
                             result["warnings"].append("หลัง Login พบหน้าขอ OTP — ระบบไม่กรอก OTP ให้ (ต้องทดสอบด้วยมือ)")
             elif pw_f and not (username and password):
                 result["login"] = {"attempted": False, "reason": "NO_CREDENTIALS", "message": "พบฟอร์ม Login แต่ไม่ได้ใส่ Username/Password — สำรวจเฉพาะหน้าแรก"}
+            if click_explore:
+                # explore the page the user ends up on: after login when login worked, otherwise the first page
+                on_after = bool(result.get("after"))
+                snap = result["after"] if on_after else before
+                result["clicks"] = click_explore_page(page, ctx, page.url if on_after else url, snap, max_clicks, shots, PwError)
+                result["clicks"]["logged_in"] = on_after
             ctx.close()
             browser.close()
     finally:
@@ -315,5 +321,160 @@ def observations(r: dict) -> list[str]:
             obs.append("หลัง Login เห็นเมนู: " + ", ".join(menu))
         if any(LOGOUT_RX.search(x["text"] or "") for x in a["buttons"] + a["links"]):
             obs.append("มีปุ่ม/ลิงก์ ออกจากระบบ")
+    c = r.get("clicks")
+    if c:
+        done = [x for x in c["items"] if x.get("clicked")]
+        skipped = [x for x in c["items"] if not x.get("clicked")]
+        obs.append(f"กดสำรวจ{' (หลัง Login)' if c.get('logged_in') else ''}: กด {len(done)} รายการ — มีผล {len([x for x in done if x.get('changed')])}, "
+                   f"ไม่มีอะไรเปลี่ยน {len([x for x in done if not x.get('changed')])} · ข้าม {len(skipped)} รายการ (ไม่ปลอดภัย/ไม่มีชื่อ/ครบจำนวน)")
+        for x in done[:12]:
+            obs.append(f"  • กด \"{x['label']}\" → {x['summary']}")
     obs += r.get("warnings", [])
     return obs
+
+
+
+# ------------------------------------------------------------------ Click Explore (safe clicks only)
+# Never click anything that could pay, buy, delete, send, save or change an account. Matched against the
+# visible text, aria-label, id, name and href of the element. Anything without a readable label is skipped too.
+UNSAFE_RX = re.compile(
+    r"pay|payment|checkout|check[\s_-]*out|purchase|\bbuy\b|\border\b|billing|invoice|subscri|donat|wallet|credit|"
+    r"ชำระ|จ่าย|ซื้อ|สั่งซื้อ|โอน|เติมเงิน|บัตร|"
+    r"delete|remove|\btrash\b|ลบ|logout|log[\s_-]*out|sign[\s_-]*out|ออกจากระบบ|ลงชื่อออก|"
+    r"submit|\bsend\b|ส่ง|confirm|ยืนยัน|\bsave\b|บันทึก|\bapply\b|reset|รีเซ็ต|ล้าง|clear|"
+    r"password|รหัสผ่าน|upload|อัปโหลด|download|ดาวน์โหลด|approve|อนุมัติ|reject|ปฏิเสธ|publish|\bpost\b|"
+    r"create|สร้าง|invite|เชิญ|register|sign[\s_-]*up|สมัคร|\bbook\b|จอง|accept|ยอมรับ|"
+    r"deactivate|close[\s_-]*account|ปิดบัญชี|\brun\b|execute|รัน|import|export|generate|merge|deploy|install",
+    re.I)
+CLICK_STATE_JS = r"""
+() => {
+  const vis = el => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
+    return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none'; };
+  const lines = Array.from(new Set(((document.body && document.body.innerText) || '').split('\n')
+    .map(t => t.replace(/\s+/g, ' ').trim()).filter(t => t && t.length <= 120))).slice(0, 600);
+  const modals = Array.from(document.querySelectorAll('[role=dialog],[aria-modal=true],dialog[open],.modal.show,.modal[open]')).filter(vis).length;
+  return { url: location.href, title: document.title, lines, modals };
+}
+"""
+MODAL_SEL = "[role=dialog],[aria-modal=true],dialog[open],.modal.show"
+
+
+def classify(item: dict, kind: str) -> tuple[bool, str]:
+    label = (item.get("text") or "").strip()
+    probe = " ".join(str(item.get(k) or "") for k in ("text", "id", "name", "href"))
+    if not item.get("locator"):
+        return False, "หาปุ่มนี้แบบไม่ซ้ำไม่ได้"
+    if not label:
+        return False, "ไม่มีข้อความบอกว่าปุ่มทำอะไร"
+    m = UNSAFE_RX.search(probe)
+    if m:
+        return False, f"ไม่ปลอดภัย (คำว่า \"{m.group(0)}\")"
+    if kind == "button" and item.get("type") == "submit" and item.get("form", -1) >= 0:
+        return False, "เป็นปุ่มส่งฟอร์ม"
+    if kind == "link":
+        href = item.get("href") or ""
+        if href.startswith(("mailto:", "tel:", "javascript:")):
+            return False, "ลิงก์อีเมล/โทร/สคริปต์"
+    return True, ""
+
+
+def _block_writes(route):
+    # Safety net: during Click Explore nothing may be written to the server (POST/PUT/PATCH/DELETE are cancelled)
+    if route.request.method in ("GET", "HEAD", "OPTIONS"):
+        route.continue_()
+    else:
+        route.abort()
+
+
+def click_explore_page(page, ctx, start_url: str, snap: dict, max_clicks: int, shots: dict, PwError) -> dict:
+    host = urlparse(start_url).netloc
+    cands: list[tuple[str, dict]] = []
+    seen_labels = set()
+    for kind, items in (("button", snap["buttons"]), ("link", snap["links"])):
+        for it in items:
+            if kind == "link" and urlparse(it.get("href") or "").netloc not in ("", host):
+                continue  # other websites are never followed
+            key = (kind, (it.get("text") or "").strip())
+            if key in seen_labels:
+                continue
+            seen_labels.add(key)
+            cands.append((kind, it))
+    out: dict = {"start_url": start_url, "items": [], "blocked_writes": 0}
+    clicked = 0
+    t_end = time.monotonic() + 120
+    dialogs: list[str] = []
+    page.on("dialog", lambda d: (dialogs.append(d.message), d.dismiss()))  # dismiss = Cancel → nothing is confirmed
+    blocked = {"n": 0}
+
+    def guard(route):
+        if route.request.method not in ("GET", "HEAD", "OPTIONS"):
+            blocked["n"] += 1
+        _block_writes(route)
+    page.route("**/*", guard)
+    try:
+        for kind, it in cands:
+            label = (it.get("text") or "").strip() or "(ไม่มีข้อความ)"
+            ok, reason = classify(it, kind)
+            rec = {"kind": kind, "label": label, "locator": it.get("locator"), "href": it.get("href")}
+            if not ok or clicked >= max_clicks or time.monotonic() > t_end:
+                rec.update({"clicked": False, "reason": reason or ("ครบจำนวนที่ตั้งไว้" if clicked >= max_clicks else "หมดเวลา")})
+                out["items"].append(rec)
+                continue
+            try:
+                page.goto(start_url, wait_until="domcontentloaded", timeout=20000)
+                try:
+                    page.wait_for_load_state("networkidle", timeout=4000)
+                except PwError:
+                    pass
+                before = page.evaluate(CLICK_STATE_JS)
+                pages_before = len(ctx.pages)
+                dialogs.clear()
+                b0 = blocked["n"]
+                to_locator(page, it["locator"]).click(timeout=5000)
+                try:
+                    page.wait_for_load_state("networkidle", timeout=4000)
+                except PwError:
+                    pass
+                page.wait_for_timeout(700)
+                after = page.evaluate(CLICK_STATE_JS)
+                clicked += 1
+                new_tabs = [p for p in ctx.pages[pages_before:]]
+                for p in new_tabs:
+                    p.close()
+                added = [x for x in after["lines"] if x not in set(before["lines"])]
+                removed = [x for x in before["lines"] if x not in set(after["lines"])]
+                eff = {"url_before": before["url"], "url_after": after["url"], "url_changed": after["url"] != before["url"],
+                       "title_after": after["title"], "modal_opened": after["modals"] > before["modals"], "js_dialogs": list(dialogs),
+                       "new_tab": bool(new_tabs), "added": added[:8], "removed": removed[:8], "blocked_writes": blocked["n"] - b0}
+                eff["summary"] = _effect_summary(eff)
+                eff["changed"] = bool(eff["url_changed"] or eff["modal_opened"] or eff["js_dialogs"] or eff["new_tab"] or added or removed)
+                n = len([x for x in out["items"] if x.get("clicked")]) + 1
+                shots[f"click_{n}"] = page.screenshot(full_page=False)
+                rec.update({"clicked": True, "n": n, **eff})
+            except PwError as e:
+                rec.update({"clicked": False, "reason": "กดไม่ได้ (ปุ่มถูกบัง/หายไป)", "technical": str(e)[:200]})
+            out["items"].append(rec)
+    finally:
+        page.unroute("**/*", guard)
+        out["blocked_writes"] = blocked["n"]
+    return out
+
+
+def _effect_summary(e: dict) -> str:
+    parts = []
+    if e["url_changed"]:
+        u = urlparse(e["url_after"])
+        parts.append(f"ไปหน้า {u.path or '/'}{'?' + u.query if u.query else ''}{'#' + u.fragment if u.fragment else ''}")
+    if e["modal_opened"]:
+        parts.append("มีหน้าต่าง (dialog/modal) เปิดขึ้นมา")
+    if e["js_dialogs"]:
+        parts.append(f"มีกล่องข้อความเด้งขึ้น: \"{e['js_dialogs'][0][:80]}\"")
+    if e["new_tab"]:
+        parts.append("เปิดแท็บใหม่")
+    if e["added"] and not e["url_changed"]:
+        parts.append("ข้อความใหม่บนหน้า: " + ", ".join(f"\"{x[:40]}\"" for x in e["added"][:3]))
+    if e["removed"] and not e["url_changed"]:
+        parts.append("ข้อความที่หายไป: " + ", ".join(f"\"{x[:40]}\"" for x in e["removed"][:3]))
+    if e["blocked_writes"]:
+        parts.append(f"ระบบกันการส่งข้อมูลไป server {e['blocked_writes']} ครั้ง (เพื่อไม่ให้ข้อมูลจริงเปลี่ยน)")
+    return " · ".join(parts) or "ไม่มีอะไรเปลี่ยนที่มองเห็นได้"

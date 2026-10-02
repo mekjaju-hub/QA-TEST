@@ -21,8 +21,10 @@ type Exploration = {
   id: string; url: string; created_at: string; created_by: string; status: number | null; duration_sec: number;
   before: { title: string }; login: { attempted: boolean; success?: boolean; message?: string; reason?: string };
   observations: string[]; test_cases: TC[]; files: Record<string, string>; screenshots: string[]; last_run?: WebRun; warnings: string[];
-  history_key?: string; history_page?: string; history_before?: { explorations: number; test_cases: number }; designs_left?: number;
+  history_key?: string; history_page?: string; history_before?: { explorations: number; test_cases: number }; designs_left?: number; clicks?: Clicks;
 };
+type ClickItem = { kind: string; label: string; clicked: boolean; reason?: string; n?: number; summary?: string; changed?: boolean; url_after?: string };
+type Clicks = { start_url: string; logged_in: boolean; blocked_writes: number; items: ClickItem[] };
 type Summary = { id: string; url: string; title: string; created_at: string; test_cases: number; login: Exploration["login"]; last_run?: Record<string, number> | null };
 
 const PRACTICE_QUESTIONS = [
@@ -46,6 +48,8 @@ export default function WebExplorerPage() {
   const [revealed, setRevealed] = useState(false);
   const [notes, setNotes] = useState("");
   const [extra, setExtra] = useState(5);
+  const [clickMode, setClickMode] = useState(true);
+  const [maxClicks, setMaxClicks] = useState(10);
   // open an exploration / prefill a URL when coming from the History page (?id=… or ?url=…)
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
@@ -65,7 +69,7 @@ export default function WebExplorerPage() {
   }, [d?.id]);
 
   const explore = useMutation({
-    mutationFn: () => api.post<Exploration>("/api/web-explorer", { url, username: user || null, password: pass || null, extra }),
+    mutationFn: () => api.post<Exploration>("/api/web-explorer", { url, username: user || null, password: pass || null, extra, click_explore: clickMode, max_clicks: maxClicks }),
     onSuccess: res => {
       qc.setQueryData(["web-explorer", res.id], res);
       qc.invalidateQueries({ queryKey: ["web-explorer"], exact: true });
@@ -112,6 +116,15 @@ export default function WebExplorerPage() {
             ใส่ Username/Password เมื่ออยากให้ลอง Login 1 ครั้งแล้วดูหน้าหลัง Login · ระบบไม่บันทึกรหัสผ่าน · ใช้บัญชีทดสอบเท่านั้น ·
             ไม่แก้ CAPTCHA/OTP ให้ · ใช้กับเว็บที่คุณได้รับอนุญาตให้ทดสอบ
           </p>
+          <label className="small" style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}>
+            <input type="checkbox" checked={clickMode} onChange={e => setClickMode(e.target.checked)} />
+            <b>กดสำรวจ (Click Explore)</b>: กดปุ่ม/ลิงก์ที่ปลอดภัยทีละอันเพื่อดูว่าเกิดอะไรขึ้น สูงสุด
+            <input type="number" aria-label="จำนวนครั้งที่กดสูงสุด" min={1} max={20} value={maxClicks} style={{ width: 60 }} disabled={!clickMode}
+              onChange={e => setMaxClicks(Math.max(1, Math.min(20, Number(e.target.value) || 1)))} /> ครั้ง
+          </label>
+          {clickMode && <p className="small muted" style={{ margin: "0 0 8px 24px" }}>
+            ไม่กดปุ่มชำระเงิน/ซื้อ/สั่งซื้อ/Checkout, ลบ, ส่ง/ยืนยัน/บันทึก, ออกจากระบบ, สร้าง/อนุมัติ และลิงก์ไปเว็บอื่น · ระหว่างกดระบบยกเลิกการส่งข้อมูลไป server (POST/PUT/DELETE) ทั้งหมด · ใช้กับเว็บทดสอบเท่านั้น
+          </p>}
           <label className="small" style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 10 }}>
             <input type="checkbox" checked={practice} onChange={e => setPractice(e.target.checked)} /> โหมดฝึก: ซ่อน Test Case และโค้ดไว้ก่อน ให้ลองสังเกตเองก่อน
           </label>
@@ -187,6 +200,8 @@ export default function WebExplorerPage() {
                   </>}
                 </div>
               </div>
+              {d.clicks && !locked && <ClickTable id={d.id} c={d.clicks} />}
+              {d.clicks && locked && <p className="small muted">ผลการกดสำรวจจะแสดงหลังกด "ดูเฉลย" — ลองเดาก่อนว่ากดปุ่มแต่ละปุ่มแล้วจะเกิดอะไรขึ้น</p>}
             </TabPanel>
 
             <TabPanel value="cases">
@@ -330,4 +345,25 @@ pytest --lf                         # รันซ้ำเฉพาะตัว
 
 function Lesson({ title, children }: { title: string; children: React.ReactNode }) {
   return <section className="card" style={{ marginBottom: 0, padding: 16 }}><h3 style={{ marginTop: 0 }}>{title}</h3>{children}</section>;
+}
+
+function ClickTable({ id, c }: { id: string; c: Clicks }) {
+  const done = c.items.filter(x => x.clicked);
+  return (
+    <div style={{ marginTop: 14 }}>
+      <h3>ผลการกดสำรวจ {c.logged_in ? "(หลัง Login)" : ""}</h3>
+      <p className="small muted">เริ่มจาก {c.start_url} ทุกครั้ง · กด {done.length} รายการ · มีผล {done.filter(x => x.changed).length} ·
+        ข้าม {c.items.length - done.length} รายการ{c.blocked_writes ? ` · ระบบกันการส่งข้อมูลไป server ${c.blocked_writes} ครั้ง` : ""}</p>
+      <div className="tblwrap"><table><thead><tr><th>#</th><th>ปุ่ม / ลิงก์</th><th>กดไหม</th><th>เกิดอะไรขึ้น</th><th>ภาพหลังกด</th></tr></thead><tbody>
+        {c.items.map((x, i) => (
+          <tr key={i}>
+            <td className="small">{x.n ?? "-"}</td>
+            <td><b>{x.label}</b><br /><span className="small muted">{x.kind === "button" ? "ปุ่ม" : "ลิงก์"}</span></td>
+            <td>{x.clicked ? <Badge status="DONE">กดแล้ว</Badge> : <span className="small"><Badge status="CANCELLED">ข้าม</Badge><br />{x.reason}</span>}</td>
+            <td className="small">{x.clicked ? (x.changed ? x.summary : <span className="muted">{x.summary}</span>) : "-"}</td>
+            <td>{x.clicked && x.n ? <AuthImage src={`/api/web-explorer/${id}/screenshot/click_${x.n}`} alt={`หลังกด ${x.label}`} style={{ width: 180, border: "1px solid var(--line)", borderRadius: 4 }} /> : null}</td>
+          </tr>))}
+      </tbody></table></div>
+    </div>
+  );
 }
