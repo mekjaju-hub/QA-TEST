@@ -437,6 +437,26 @@ def _extra_candidates(r: dict, has_login: bool) -> list[dict]:
         "ไม่มีรูปที่ขาด alt", ["page.goto(site_url)", "missing = page.locator(\"img:not([alt])\").count()",
                                 "assert missing == 0, f\"รูปไม่มี alt {missing} รูป\""], observed=f"รูปไม่มี alt {b['imgs_no_alt']} รูป")
 
+    selects = [f for f in b["fields"] if f.get("locator") and f["tag"] == "select" and f.get("options")][:3]
+    for n, f in enumerate(selects, 1):
+        fname = _field_name(f)
+        loc = loc_code(f["locator"])
+        opts = [o for o in f["options"] if o["text"]]
+        add(f"dropdown.has_options:{fname}", f"dropdown{n}_has_options", f"Dropdown \"{fname}\" มีตัวเลือกให้เลือก", "Dropdown",
+            [f"เปิด {url}", f"กดเปิด Dropdown \"{fname}\""], f"มีตัวเลือกอย่างน้อย {len(opts)} ตัว เช่น " + ", ".join(o["text"] for o in opts[:4]),
+            ["page.goto(site_url)", f"options = {loc}.locator(\"option\").all_inner_texts()",
+             f"assert len([o for o in options if o.strip()]) >= {len(opts)}, options"], observed=f"{len(opts)} ตัวเลือก")
+        choice = next((o for o in f["options"] if o["value"] and not o["disabled"] and o["value"] != f.get("selected")), None)
+        if choice:
+            add(f"dropdown.select_option:{fname}", f"dropdown{n}_select_option", f"เลือก \"{choice['text']}\" ใน Dropdown \"{fname}\" ได้", "Dropdown",
+                [f"เปิด {url}", f"เลือก \"{choice['text']}\" ใน Dropdown \"{fname}\""], f"Dropdown แสดงค่าที่เลือก (value = {choice['value']})",
+                ["page.goto(site_url)", f"dropdown = {loc}", f"dropdown.select_option({q(choice['value'])})",
+                 f"expect(dropdown).to_have_value({q(choice['value'])})"])
+        if f.get("required"):
+            add(f"dropdown.required:{fname}", f"dropdown{n}_required", f"Dropdown \"{fname}\" เป็นช่องบังคับเลือก", "Dropdown",
+                [f"เปิด {url}", f"ดูว่า Dropdown \"{fname}\" บังคับเลือกหรือไม่"], "มีเครื่องหมาย/คุณสมบัติบังคับเลือก (required)",
+                ["page.goto(site_url)", f"expect({loc}).to_have_attribute(\"required\", \"\")"])
+
     texts = [f for f in b["fields"] if f.get("locator") and f["type"] in TEXT_TYPES | {"email"} and f["tag"] in ("input", "textarea")][:3]
     for n, f in enumerate(texts, 1):
         fname = _field_name(f)

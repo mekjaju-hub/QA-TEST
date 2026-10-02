@@ -248,3 +248,45 @@ def history_csv(key: str, p: Principal = Depends(require("auto.view"))):
     name = f"web_history_{key}.csv"
     return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+# ================================================================== Test Case Library (all websites, no duplicates)
+from ..services import web_library as wl  # noqa: E402
+
+
+def _library(q: str, category: str, result: str, site: str) -> tuple[list[dict], list[dict]]:
+    wh.backfill()
+    rows = wl.build()
+    return rows, wl.filtered(rows, q=q, category=category, result=result, site=site)
+
+
+@router.get("/web-library")
+def library(q: str = "", category: str = "", result: str = "", site: str = "", p: Principal = Depends(require("auto.view"))):
+    rows, items = _library(q, category, result, site)
+    cats = [{"code": code, "label": label, "count": len([r for r in rows if r["category"] == code])}
+            for code, label in wl.CATEGORY_LABEL.items()]
+    sites = sorted({s["page"].split("/")[0] for r in rows for s in r["sources"]})
+    return {"total": len(rows), "count": len(items), "categories": cats, "sites": sites, "headers": wl.HEADERS,
+            "items": items, "table": wl.table(items)}
+
+
+@router.get("/web-library/export.xlsx")
+def library_xlsx(q: str = "", category: str = "", result: str = "", site: str = "", p: Principal = Depends(require("auto.view")),
+                 db: Session = Depends(get_db)):
+    _, items = _library(q, category, result, site)
+    audit(db, p.username, "EXPORT", "web_test_case_library.xlsx", f"{len(items)} test cases")
+    db.commit()
+    return Response(wl.to_xlsx(items), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": 'attachment; filename="web_test_case_library.xlsx"'})
+
+
+@router.get("/web-library/export.csv")
+def library_csv(q: str = "", category: str = "", result: str = "", site: str = "", p: Principal = Depends(require("auto.view"))):
+    import csv
+    _, items = _library(q, category, result, site)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(wl.HEADERS)
+    w.writerows(wl.table(items))
+    return Response("﻿" + buf.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": 'attachment; filename="web_test_case_library.csv"'})

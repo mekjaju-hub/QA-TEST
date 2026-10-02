@@ -2,6 +2,7 @@
 <body><h1>ระบบตัวอย่าง</h1>
 <form id="f"><label for="u">ชื่อผู้ใช้</label><input id="u" name="u" required>
 <label for="p">รหัสผ่าน</label><input id="p" name="p" type="password" required>
+<label for="lang">ภาษา</label><select id="lang" name="lang"><option value="th">ไทย</option><option value="en">English</option><option value="jp">日本語</option></select>
 <button type="submit">เข้าสู่ระบบ</button><div role="alert" id="err"></div></form>
 <script>
 document.getElementById('f').addEventListener('submit', function (e) {

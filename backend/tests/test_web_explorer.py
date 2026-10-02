@@ -178,3 +178,49 @@ def test_click_explore_only_safe_clicks_and_behaviour_tests_pass(site):
     lim = sandbox.Limits(timeout_sec=240, cpu_sec=400, memory_mb=1024, limit_address_space=False, max_procs=4096)
     out = sandbox.run_pytest(gen["files"], lim, test_env={"BASE_URL": spa, "LOGIN_USER": "standard_user", "LOGIN_PASS": "practice-pass"})
     assert out.status == "PASSED", out.stdout[-4000:] + out.stderr[-1500:]
+
+
+@needs_browser
+def test_dropdown_designs_run(site):
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "automation-runner"))
+    from runner import sandbox
+    r = wx.explore(site)
+    dd = next(f for f in r["before"]["fields"] if f["tag"] == "select")
+    assert [o["text"] for o in dd["options"]] == ["ไทย", "English", "日本語"]
+    assert any("Dropdown: ภาษา (3 ตัวเลือก)" in o for o in wx.observations(r))
+    gen = web_testgen.build(r, include_sigs={"dropdown.has_options:ภาษา", "dropdown.select_option:ภาษา"})
+    titles = [t["title"] for t in gen["test_cases"]]
+    assert 'Dropdown "ภาษา" มีตัวเลือกให้เลือก' in titles and 'เลือก "English" ใน Dropdown "ภาษา" ได้' in titles
+    lim = sandbox.Limits(timeout_sec=180, cpu_sec=300, memory_mb=1024, limit_address_space=False, max_procs=4096)
+    out = sandbox.run_pytest(gen["files"], lim, test_env={"BASE_URL": site})
+    assert out.summary["failed"] == 0, out.stdout[-3000:]
+
+
+@needs_browser
+def test_library_merges_all_websites_without_duplicates(client, admin, site):
+    """Same test idea on two different pages → one library row with two sources; categories + filters + exports work."""
+    a = client.post("/api/web-explorer", headers=admin, json={"url": site, "extra": 30}).json()
+    b = client.post("/api/web-explorer", headers=admin, json={"url": site.replace("index.html", "spa.html"), "extra": 30}).json()
+    assert a["history_key"] != b["history_key"]
+    lib = client.get("/api/web-library", headers=admin).json()
+    keys = [(i["category"], i["title"].lower()) for i in lib["items"]]
+    assert len(keys) == len(set(keys))                                    # no identical test cases
+    lids = [i["lid"] for i in lib["items"]]
+    assert len(lids) == len(set(lids))
+    opens = next(i for i in lib["items"] if i["title"] == "เปิดหน้าเว็บได้และชื่อหน้าถูกต้อง")
+    pages = {s["page"] for s in opens["sources"]}
+    assert len(pages) >= 2 and all(s["hid"].startswith("WP-") for s in opens["sources"])     # still traceable
+    assert "[หน้าเว็บที่ทดสอบ]" in opens["steps"][0] and "http" not in opens["steps"][0]
+    cats = {c["code"]: c["count"] for c in lib["categories"]}
+    assert cats["login"] > 0 and cats["dropdown"] > 0 and cats["input"] > 0 and cats["page"] > 0
+    only_dd = client.get("/api/web-library?category=dropdown", headers=admin).json()
+    assert only_dd["count"] == cats["dropdown"] and all(i["category"] == "dropdown" for i in only_dd["items"])
+    found = client.get("/api/web-library", headers=admin, params={"q": "รหัสผ่านผิด"}).json()
+    assert found["count"] >= 1 and all("รหัสผ่านผิด" in (i["title"] + i["expected"] + " ".join(i["steps"])) for i in found["items"])
+    again = client.get("/api/web-library", headers=admin).json()
+    assert [i["lid"] for i in again["items"]] == lids                    # IDs are stable
+    x = client.get("/api/web-library/export.xlsx", headers=admin)
+    assert x.status_code == 200 and x.content[:2] == b"PK"
+    c = client.get("/api/web-library/export.csv?category=login", headers=admin)
+    assert c.status_code == 200 and "Library ID" in c.text

@@ -30,7 +30,9 @@ SNAPSHOT_JS = r"""
     .filter(e => (e.getAttribute('type') || '').toLowerCase() !== 'hidden' && vis(e)).slice(0, 40)
     .map(e => ({ tag: e.tagName.toLowerCase(), type: (e.getAttribute('type') || (e.tagName === 'INPUT' ? 'text' : e.tagName)).toLowerCase(),
       name: e.getAttribute('name') || '', id: e.id || '', placeholder: e.getAttribute('placeholder') || '', label: labelOf(e),
-      required: !!e.required, autocomplete: e.getAttribute('autocomplete') || '', form: formIdx(e) }));
+      required: !!e.required, autocomplete: e.getAttribute('autocomplete') || '', form: formIdx(e),
+      options: e.tagName === 'SELECT' ? Array.from(e.options).slice(0, 30).map(o => ({ text: clean(o.text), value: o.value, disabled: !!o.disabled })) : undefined,
+      selected: e.tagName === 'SELECT' ? e.value : undefined }));
   const buttons = Array.from(document.querySelectorAll('button,input[type=submit],input[type=button],[role=button]'))
     .filter(vis).slice(0, 30)
     .map(e => ({ text: txt(e), type: (e.getAttribute('type') || (e.tagName === 'BUTTON' ? 'submit' : '')).toLowerCase(), id: e.id || '',
@@ -292,6 +294,9 @@ def observations(r: dict) -> list[str]:
     if b["fields"]:
         obs.append(f"ช่องกรอก {len(b['fields'])} ช่อง: " + ", ".join(
             f"{f['label'] or f['placeholder'] or f['name'] or f['type']} ({f['type']}{', จำเป็น' if f['required'] else ''})" for f in b["fields"][:8]))
+    dds = [f for f in b["fields"] if f["tag"] == "select"]
+    if dds:
+        obs.append("Dropdown: " + ", ".join(f"{f['label'] or f['name'] or f['id'] or 'select'} ({len(f.get('options') or [])} ตัวเลือก)" for f in dds[:5]))
     if b["buttons"]:
         obs.append("ปุ่ม: " + ", ".join(x["text"] or "(ไม่มีข้อความ)" for x in b["buttons"][:8]))
     if b["links"]:
