@@ -69,7 +69,8 @@ export function AppShell({ crumbs, children }: { crumbs: [string, string?][]; ch
             );
           })}
           {can("auto.generate") && <><div className="grp">ฝึก Automation</div>
-            <Link href="/web-explorer" className={pathname === "/web-explorer" ? "on" : ""}>Web Explorer</Link></>}
+            <Link href="/web-explorer" className={pathname === "/web-explorer" ? "on" : ""}>Web Explorer</Link>
+            <Link href="/web-explorer/history" className={pathname === "/web-explorer/history" ? "on" : ""}>Web History</Link></>}
           {(can("settings") || can("audit.view")) && <div className="grp">ระบบ (Admin)</div>}
           {can("settings") && <Link href="/settings" className={pathname === "/settings" ? "on" : ""}>Settings</Link>}
           {can("audit.view") && <Link href="/audit-log" className={pathname === "/audit-log" ? "on" : ""}>Audit Log</Link>}

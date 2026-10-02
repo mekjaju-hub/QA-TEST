@@ -15,8 +15,17 @@ SITE = Path(__file__).parent / "web_fixture"
 
 @pytest.fixture(scope="module")
 def site():
-    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(SITE))
-    handler.log_message = lambda *a, **k: None
+    class Handler(http.server.SimpleHTTPRequestHandler):
+        # like a real server: protected pages without a session show the login page again
+        ROUTES = {"/home": "/index.html", "/inventory.html": "/spa.html"}
+
+        def do_GET(self):  # noqa: N802
+            self.path = self.ROUTES.get(self.path.split("?")[0], self.path)
+            return super().do_GET()
+
+        def log_message(self, *a, **k):
+            pass
+    handler = functools.partial(Handler, directory=str(SITE))
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{srv.server_address[1]}/index.html"
@@ -96,3 +105,46 @@ def test_wrong_password_reports_error_message_quickly(site):
     assert not r["login"]["success"]
     assert "Epic sadface" in r["login"]["message"] and "standard_user" not in r["login"]["alerts"][0]
     assert time.monotonic() - t0 < 25
+
+
+@needs_browser
+def test_page_history_accumulates_without_duplicates(client, admin, site):
+    """Each exploration of the same page adds only *new* designs; history keeps every TC once with a WP-ID."""
+    spa = site.replace("index.html", "spa.html") + "?utm_source=a"
+    creds = {"username": "standard_user", "password": "practice-pass", "extra": 4}
+    r1 = client.post("/api/web-explorer", headers=admin, json={"url": spa, **creds}).json()
+    sig1 = {t["sig"] for t in r1["test_cases"]}
+    more1 = [t for t in r1["test_cases"] if t["id"].startswith("TC-MORE")]
+    assert len(more1) == 4 and all(t["is_new"] and t["hid"].startswith("WP-") for t in r1["test_cases"])
+    # same page, different query string → same history; base TCs are "seen before", extras are all different
+    r2 = client.post("/api/web-explorer", headers=admin, json={"url": spa.replace("utm_source=a", "x=1"), **creds}).json()
+    assert r2["history_key"] == r1["history_key"]
+    more2 = [t for t in r2["test_cases"] if t["id"].startswith("TC-MORE")]
+    assert more2 and not ({t["sig"] for t in more2} & sig1)
+    assert all(not t["is_new"] for t in r2["test_cases"] if not t["id"].startswith("TC-MORE"))
+    base_hids = {t["sig"]: t["hid"] for t in r1["test_cases"]}
+    assert all(base_hids[t["sig"]] == t["hid"] for t in r2["test_cases"] if t["sig"] in base_hids)   # IDs are stable
+    # history page
+    pages = client.get("/api/web-history", headers=admin).json()
+    pg = next(x for x in pages if x["key"] == r1["history_key"])
+    assert pg["explorations"] == 2 and pg["test_cases"] == len(sig1 | {t["sig"] for t in r2["test_cases"]})
+    det = client.get(f"/api/web-history/{r1['history_key']}", headers=admin).json()
+    hids = [t["hid"] for t in det["test_cases"]]
+    assert len(hids) == len(set(hids)) and det["test_cases"][0]["designed"] == 2
+    # a run updates the history results
+    run = client.post(f"/api/web-explorer/{r2['id']}/run", headers=admin, json={"username": "standard_user", "password": "practice-pass"}).json()
+    # the practice site keeps no session, so "refresh keeps session" is expected to FAIL — extra designs can find real issues
+    assert run["summary"]["total"] >= len(r2["test_cases"]) and run["error_code"] is None, run["stdout"][-2000:]
+    det = client.get(f"/api/web-history/{r1['history_key']}", headers=admin).json()
+    results = {t["sig"]: t.get("last_result") for t in det["test_cases"]}
+    assert results["login.valid"] == "PASSED"
+    assert results.get("home.refresh_keeps_session") in (None, "FAILED")
+    # ZIP with every accumulated TC + CSV export
+    z = client.get(f"/api/web-history/{r1['history_key']}/zip", headers=admin)
+    import io
+    import zipfile
+    names = zipfile.ZipFile(io.BytesIO(z.content)).namelist()
+    md = zipfile.ZipFile(io.BytesIO(z.content)).read([n for n in names if n.endswith("TEST_CASES.md")][0]).decode()
+    assert all(h in md for h in hids)
+    csv = client.get(f"/api/web-history/{r1['history_key']}/csv", headers=admin)
+    assert csv.status_code == 200 and "WP-001" in csv.text

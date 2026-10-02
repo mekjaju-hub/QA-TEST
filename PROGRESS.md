@@ -113,5 +113,6 @@ C = Complete (มี Test อัตโนมัติยืนยัน) · C* =
 | Web Explorer (โหมดฝึก): URL → สังเกต → Test Case → pytest-playwright → Run / ZIP | C | `test_web_explorer.py` (เว็บฝึกจำลองในเครื่อง: Login + หลัง Login + รันใน Sandbox ผ่านครบ), UI E2E: สำรวจหน้า Login ของระบบเอง → 8 TC → Run 8/8 PASSED |
 | แก้ชื่อ Test ภาษาไทยแสดงเป็น `\u0e..` | C | pytest.ini ที่ generate |
 | แก้ pytest version ชนกัน (requirements-dev vs runner) | C | backend 63 passed / 1 skip, runner 18, vitest 13, E2E 5 |
+| Web History: เก็บประวัติ Test Case ต่อหน้าเว็บ (WP-xxx), ออกแบบ TC ใหม่ไม่ซ้ำของเดิม, หน้า History + ZIP/CSV | C | `test_page_history_accumulates_without_duplicates` + UI E2E (สำรวจหน้าเดิม 2 ครั้ง → TC ใหม่ไม่ซ้ำ, 18 TC สะสม, Run 13/13 PASSED) · backend 66 passed / 1 skip, vitest 13, E2E 5 |
 
 ข้อจำกัด Web Explorer: ใช้ได้ในโหมด RUN-DEV (ต้องมี Chromium ของ Playwright) — Docker image ยังไม่ได้ติดตั้ง browser; Login อัตโนมัติไม่ทำงานกับเว็บที่มี CAPTCHA/OTP (ตั้งใจไม่ข้าม)

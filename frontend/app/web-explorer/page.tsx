@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell, PageHead } from "@/components/shell";
@@ -13,13 +14,14 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/lib/toast";
 import { fmtDate } from "@/lib/utils";
 
-type TC = { id: string; title: string; type: string; priority: string; steps: string[]; expected: string; observed: string; func: string; file: string; needs_login: boolean };
+type TC = { id: string; title: string; type: string; priority: string; steps: string[]; expected: string; observed: string; func: string; file: string; needs_login: boolean; sig?: string; hid?: string; is_new?: boolean };
 type RunResult = { tc_id?: string; name: string; status: string; message: string; duration: number };
 type WebRun = { at: string; status: string; duration: number; summary: Record<string, number>; with_login: boolean; results: RunResult[]; stdout: string; stderr: string; error_code: string | null };
 type Exploration = {
   id: string; url: string; created_at: string; created_by: string; status: number | null; duration_sec: number;
   before: { title: string }; login: { attempted: boolean; success?: boolean; message?: string; reason?: string };
   observations: string[]; test_cases: TC[]; files: Record<string, string>; screenshots: string[]; last_run?: WebRun; warnings: string[];
+  history_key?: string; history_page?: string; history_before?: { explorations: number; test_cases: number }; designs_left?: number;
 };
 type Summary = { id: string; url: string; title: string; created_at: string; test_cases: number; login: Exploration["login"]; last_run?: Record<string, number> | null };
 
@@ -43,6 +45,13 @@ export default function WebExplorerPage() {
   const [practice, setPractice] = useState(true);
   const [revealed, setRevealed] = useState(false);
   const [notes, setNotes] = useState("");
+  const [extra, setExtra] = useState(5);
+  // open an exploration / prefill a URL when coming from the History page (?id=… or ?url=…)
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("id")) { setSel(sp.get("id")); setRevealed(true); }
+    if (sp.get("url")) setUrl(sp.get("url") || "");
+  }, []);
   const [file, setFile] = useState<string>("");
 
   const list = useQuery({ queryKey: ["web-explorer"], queryFn: () => api.get<Summary[]>("/api/web-explorer"), enabled: can("auto.view") });
@@ -56,7 +65,7 @@ export default function WebExplorerPage() {
   }, [d?.id]);
 
   const explore = useMutation({
-    mutationFn: () => api.post<Exploration>("/api/web-explorer", { url, username: user || null, password: pass || null }),
+    mutationFn: () => api.post<Exploration>("/api/web-explorer", { url, username: user || null, password: pass || null, extra }),
     onSuccess: res => {
       qc.setQueryData(["web-explorer", res.id], res);
       qc.invalidateQueries({ queryKey: ["web-explorer"], exact: true });
@@ -97,6 +106,8 @@ export default function WebExplorerPage() {
             <div className="field"><label htmlFor="wx-pass">Password (ไม่บังคับ)</label>
               <input id="wx-pass" type="password" autoComplete="new-password" value={pass} onChange={e => setPass(e.target.value)} /></div>
           </div>
+          <div className="field" style={{ maxWidth: 360 }}><label htmlFor="wx-extra">ออกแบบ Test Case ใหม่เพิ่ม (ข้อ) — ไม่ซ้ำกับที่หน้านี้เคยมี</label>
+            <input id="wx-extra" type="number" min={0} max={30} value={extra} onChange={e => setExtra(Math.max(0, Math.min(30, Number(e.target.value) || 0)))} /></div>
           <p className="small muted" style={{ marginTop: 0 }}>
             ใส่ Username/Password เมื่ออยากให้ลอง Login 1 ครั้งแล้วดูหน้าหลัง Login · ระบบไม่บันทึกรหัสผ่าน · ใช้บัญชีทดสอบเท่านั้น ·
             ไม่แก้ CAPTCHA/OTP ให้ · ใช้กับเว็บที่คุณได้รับอนุญาตให้ทดสอบ
@@ -136,6 +147,16 @@ export default function WebExplorerPage() {
             </div>
           </div>
 
+          {d.history_key && (() => {
+            const fresh = d.test_cases.filter(t => t.is_new).length;
+            return <div className="infobox" style={{ marginTop: 10 }}>
+              <b>ประวัติของหน้า {d.history_page}</b> — ก่อนรอบนี้สำรวจแล้ว {d.history_before?.explorations ?? 0} ครั้ง มี Test Case สะสม {d.history_before?.test_cases ?? 0} ข้อ ·
+              รอบนี้ได้ Test Case <b>ใหม่ {fresh} ข้อ</b>
+              {d.designs_left !== undefined && <> · ยังมีแบบที่ยังไม่เคยออกแบบอีก {d.designs_left} ข้อ{d.designs_left === 0 && " (ครบทุกแบบที่ระบบรู้จักแล้ว)"}</>} ·{" "}
+              <Link href={`/web-explorer/history?key=${d.history_key}`}>ดูประวัติทั้งหมดของหน้านี้ →</Link>
+            </div>;
+          })()}
+
           <Tabs value={tab} onValueChange={setTab} items={[
             { value: "observe", label: "① สิ่งที่เห็น" },
             { value: "cases", label: `② Test Cases (${d.test_cases.length})` },
@@ -171,10 +192,11 @@ export default function WebExplorerPage() {
             <TabPanel value="cases">
               {locked ? <Locked onReveal={() => setRevealed(true)} /> : <>
                 <p className="small muted">Test Case แต่ละข้อมาจากสิ่งที่สังเกตเห็น และมี pytest 1 ฟังก์ชันคู่กัน (คอลัมน์ขวาสุด) กดชื่อฟังก์ชันเพื่อดูโค้ด</p>
-                <div className="tblwrap"><table><thead><tr><th>ID</th><th>Test Case</th><th>ประเภท</th><th>ขั้นตอน</th><th>ผลที่คาดหวัง</th><th>ตอนสำรวจเห็น</th><th>pytest</th></tr></thead><tbody>
+                <div className="tblwrap"><table><thead><tr><th>ID</th><th>ประวัติ</th><th>Test Case</th><th>ประเภท</th><th>ขั้นตอน</th><th>ผลที่คาดหวัง</th><th>ตอนสำรวจเห็น</th><th>pytest</th></tr></thead><tbody>
                   {d.test_cases.map(t => (
                     <tr key={t.id}>
                       <td className="mono small">{t.id}</td>
+                      <td className="small"><span className="mono">{t.hid ?? "-"}</span><br />{t.is_new ? <span className="badge b-green">ใหม่</span> : <span className="badge b-gray">เคยมีแล้ว</span>}</td>
                       <td><b>{t.title}</b>{t.needs_login && <><br /><span className="badge b-orange">ต้องใช้ Username/Password</span></>}</td>
                       <td className="small">{t.type}<br /><span className="muted">{t.priority}</span></td>
                       <td className="small"><ol style={{ margin: 0, paddingLeft: 16 }}>{t.steps.map((s, i) => <li key={i}>{s}</li>)}</ol></td>

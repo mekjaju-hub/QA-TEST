@@ -19,6 +19,7 @@ from ..core.errors import AppError
 from ..db import get_db
 from ..repositories import audit
 from ..services import web_explorer as wx
+from ..services import web_history as wh
 from ..services import web_testgen
 from ..services.storage import get_storage
 from .deps import Principal, require
@@ -31,6 +32,7 @@ class ExploreIn(BaseModel):
     url: str = Field(min_length=3, max_length=2000)
     username: str | None = Field(default=None, max_length=200)
     password: str | None = Field(default=None, max_length=200)
+    extra: int = Field(default=5, ge=0, le=30, description="จำนวน Test Case แบบใหม่ที่ยังไม่เคยออกแบบให้หน้านี้")
 
 
 class WebRunIn(BaseModel):
@@ -65,15 +67,23 @@ def _summary(d: dict) -> dict:
 def explore(body: ExploreIn, p: Principal = Depends(require("auto.generate")), db: Session = Depends(get_db)):
     shots: dict = {}
     r = wx.explore(body.url, username=body.username or None, password=body.password or None, shots=shots)
-    gen = web_testgen.build(r)
+    # page history: design only test cases this page has not had before, give each a page-scoped ID (WP-001 …)
+    h = wh.for_url(r["url"])
+    known = wh.known_sigs(h)
+    first = web_testgen.build(r, history_sigs=known, extra_limit=body.extra)
+    hids = wh.assign_ids(h, [t["sig"] for t in first["test_cases"]])
+    gen = web_testgen.build(r, history_sigs=known, extra_limit=body.extra, hid_map=hids)
     eid = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + "-" + uuid.uuid4().hex[:6]
     data = {"id": eid, "created_at": datetime.now(timezone.utc).isoformat(), "created_by": p.username, **r,
             "observations": wx.observations(r), "test_cases": gen["test_cases"], "files": gen["files"], "slug": gen["slug"],
-            "screenshots": sorted(shots)}
+            "screenshots": sorted(shots), "history_key": h["key"], "history_page": h["page"],
+            "history_before": {"explorations": len(h["explorations"]), "test_cases": len(known)},
+            "designs_left": gen["candidates_left"]}
     st = get_storage()
     for name, png in shots.items():
         st.write_bytes(_key(eid, f"{name}.png"), png)
     _save(eid, data)
+    wh.save(wh.record_exploration(h, data))
     lg = r.get("login") or {}
     audit(db, p.username, "WEB_EXPLORE", r["url"][:200],
           f"tc={len(gen['test_cases'])} login={'ok' if lg.get('success') else ('tried' if lg.get('attempted') else 'no')} user={lg.get('user_masked', '')}", ip=p.ip)
@@ -125,8 +135,14 @@ def download_zip(eid: str, p: Principal = Depends(require("auto.view")), db: Ses
 
 @router.delete("/web-explorer/{eid}")
 def delete_exploration(eid: str, p: Principal = Depends(require("auto.generate")), db: Session = Depends(get_db)):
-    _load(eid)
+    d = _load(eid)
     get_storage().delete_prefix(f"{BASE}/{eid}")
+    h = wh.load(d["history_key"], missing_ok=True) if d.get("history_key") else None
+    if h:  # the page history keeps its test cases; only mark the exploration as deleted
+        for x in h["explorations"]:
+            if x["id"] == eid:
+                x["deleted"] = True
+        wh.save(h)
     audit(db, p.username, "WEB_EXPLORE_DELETE", eid)
     db.commit()
     return {"ok": True}
@@ -157,6 +173,74 @@ def run_tests(eid: str, body: WebRunIn | None = None, p: Principal = Depends(req
            "stdout": scrub(out.stdout)[-20000:], "stderr": scrub(out.stderr)[-5000:]}
     d["last_run"] = run
     _save(eid, d)
+    h = wh.load(d["history_key"], missing_ok=True) if d.get("history_key") else None
+    if h:
+        wh.save(wh.record_run(h, d, run))
     audit(db, p.username, "WEB_TEST_RUN", d["url"][:200], f"{out.status} {out.summary}", ip=p.ip)
     db.commit()
     return run
+
+
+# ================================================================== page history (P: Web Explorer History)
+def _best_exploration(h: dict) -> dict:
+    """Most recent exploration still on disk — preferring one where login succeeded (so after-login designs can be built)."""
+    alive = []
+    for x in reversed(h["explorations"]):
+        if x.get("deleted"):
+            continue
+        try:
+            alive.append(_load(x["id"]))
+        except AppError:
+            continue
+    if not alive:
+        raise AppError("NOT_FOUND", "ไม่มีผลการสำรวจของหน้านี้เหลืออยู่ — สำรวจหน้านี้ใหม่อีกครั้ง", status=404)
+    return next((d for d in alive if (d.get("login") or {}).get("success")), alive[0])
+
+
+@router.get("/web-history")
+def history_list(p: Principal = Depends(require("auto.view"))):
+    wh.backfill()
+    return wh.list_pages()
+
+
+@router.get("/web-history/{key}")
+def history_detail(key: str, p: Principal = Depends(require("auto.view"))):
+    h = wh.load(key)
+    tcs = sorted(({"sig": s, **t} for s, t in h["test_cases"].items() if "first_seen" in t), key=lambda t: t["hid"])
+    return {**h, "test_cases": tcs}
+
+
+@router.get("/web-history/{key}/zip")
+def history_zip(key: str, p: Principal = Depends(require("auto.view")), db: Session = Depends(get_db)):
+    """One pytest project with every test case this page has accumulated (built from the best exploration snapshot)."""
+    h = wh.load(key)
+    d = _best_exploration(h)
+    sigs = {s for s, t in h["test_cases"].items() if "first_seen" in t}
+    hid_map = {s: t["hid"] for s, t in h["test_cases"].items()}
+    gen = web_testgen.build(d, history_sigs=sigs, include_sigs=sigs, hid_map=hid_map)
+    root = f"webtest_history_{gen['slug']}"
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for path, content in gen["files"].items():
+            z.writestr(f"{root}/{path}", content)
+    audit(db, p.username, "DOWNLOAD", f"{root}.zip", f"{len(gen['test_cases'])}/{len(sigs)} test cases")
+    db.commit()
+    return Response(buf.getvalue(), media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{root}.zip"'})
+
+
+@router.get("/web-history/{key}/csv")
+def history_csv(key: str, p: Principal = Depends(require("auto.view"))):
+    import csv
+    h = wh.load(key)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["ID", "Test Case", "ประเภท", "Priority", "ขั้นตอน", "ผลที่คาดหวัง", "ออกแบบครั้งแรก", "ล่าสุด", "จำนวนครั้งที่ออกแบบ",
+                "จำนวนครั้งที่รัน", "ผ่าน", "ผลล่าสุด"])
+    for s, t in sorted(h["test_cases"].items(), key=lambda kv: kv[1]["hid"]):
+        if "first_seen" not in t:
+            continue
+        w.writerow([t["hid"], t["title"], t["type"], t["priority"], " | ".join(t["steps"]), t["expected"], t["first_seen"][:19],
+                    t["last_seen"][:19], t.get("designed", 0), t.get("runs", 0), t.get("passed", 0), t.get("last_result", "")])
+    name = f"web_history_{key}.csv"
+    return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
