@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 from sqlalchemy import create_engine, event
+from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from .config import get_settings
@@ -13,9 +14,15 @@ class Base(DeclarativeBase):
 
 
 def _make_engine(url: str):
+    # Pool size must not be smaller than the worker threads that serve sync endpoints (anyio default: 40).
+    # Otherwise, under load, every thread waits for a connection while the connections can only be returned by
+    # get_db()'s cleanup — which also needs a free thread → the whole server hangs for good (found by the load test).
     kwargs: dict = {"pool_pre_ping": True, "future": True}
     if url.startswith("sqlite"):
-        kwargs["connect_args"] = {"check_same_thread": False}
+        kwargs["connect_args"] = {"check_same_thread": False, "timeout": 30}
+        kwargs["poolclass"] = NullPool          # SQLite file: a new cheap connection per request, no pool to run out of
+    else:
+        kwargs.update(pool_size=10, max_overflow=50, pool_timeout=30)
     eng = create_engine(url, **kwargs)
     if url.startswith("sqlite"):
         @event.listens_for(eng, "connect")

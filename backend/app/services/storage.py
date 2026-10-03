@@ -13,8 +13,11 @@ Future: MinioStorage / AzureBlobStorage implement the same interface.
 from __future__ import annotations
 
 import abc
+import os
 import re
 import shutil
+import threading
+import time
 from pathlib import Path
 
 from ..config import get_settings
@@ -76,15 +79,30 @@ class LocalStorage(StorageBackend):
         return p
 
     def write_bytes(self, key: str, data: bytes) -> str:
+        """Atomic: write a temp file then rename over the old one, so a reader never sees a half-written (empty) file
+        (concurrent requests to the Web History / Library used to read an empty JSON → HTTP 500 under load)."""
         p = self._resolve(key)
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_bytes(data)
-        return key
+        tmp = p.with_name(f".{p.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+        tmp.write_bytes(data)
+        for i in range(20):                      # Windows: the target may be open by a reader for a moment
+            try:
+                os.replace(tmp, p)
+                return key
+            except PermissionError:
+                time.sleep(0.02 * (i + 1))
+        tmp.unlink(missing_ok=True)
+        raise AppError("STORAGE_BUSY", "ไฟล์กำลังถูกใช้งาน ลองใหม่อีกครั้ง", status=503, technical=key, retryable=True)
 
     def read_bytes(self, key: str) -> bytes:
         p = self._resolve(key)
         if not p.is_file():
             raise AppError("FILE_NOT_FOUND", "ไม่พบไฟล์ใน Storage", status=404, technical=key)
+        for i in range(20):
+            try:
+                return p.read_bytes()
+            except PermissionError:              # Windows: being replaced right now
+                time.sleep(0.02 * (i + 1))
         return p.read_bytes()
 
     def exists(self, key: str) -> bool:

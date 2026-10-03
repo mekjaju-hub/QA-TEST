@@ -1,0 +1,189 @@
+﻿ID,Module,Test Case,Priority,Type,Pre-condition,Steps,Expected Result,Test Data,Automation,Script,Result,Defect
+WQA-AUTH-01,Login / บัญชีผู้ใช้,Login สำเร็จ → ไปหน้า Projects และแสดงชื่อผู้ใช้,High,Functional,มีบัญชี admin ที่เปลี่ยนรหัสผ่านแล้ว,"1. เปิด /login
+2. กรอก Username/Password ที่ถูกต้อง
+3. กด เข้าสู่ระบบ",ไปหน้า /projects แสดงหัวข้อ Projects และชื่อ System Admin ที่แถบบน,admin / Website-E2e!Pass1,Playwright E2E,frontend/e2e/website/01-auth.spec.ts,Pass,
+WQA-AUTH-02,Login / บัญชีผู้ใช้,รหัสผ่านผิด → ข้อความกลาง ๆ ไม่บอกว่าผิดช่องไหน และยังอยู่หน้า Login,High,Negative,-,"1. เปิด /login
+2. กรอก admin + รหัสผิด
+3. กด เข้าสู่ระบบ",แสดง 'Username หรือ Password ไม่ถูกต้อง' และยังอยู่หน้า Login,Wrong-Pass-123!,Playwright E2E,frontend/e2e/website/01-auth.spec.ts,Pass,
+WQA-AUTH-03,Login / บัญชีผู้ใช้,ผู้ใช้ที่ไม่มีในระบบ → ข้อความเดียวกับรหัสผิด (ไม่เปิดเผยว่ามี user หรือไม่),High,Security,-,1. Login ด้วย user ที่ไม่มีในระบบ,ข้อความเหมือนรหัสผิดทุกตัวอักษร (ไม่เปิดเผยว่ามี user หรือไม่),no_such_user_e2e,Playwright E2E,frontend/e2e/website/01-auth.spec.ts,Pass,
+WQA-AUTH-04,Login / บัญชีผู้ใช้,เว้นว่าง Username/Password → แจ้งเตือนช่องบังคับ ไม่ส่งไป Server,Medium,Negative,-,"1. เปิด /login
+2. กด เข้าสู่ระบบ โดยไม่กรอก",แสดง 'กรุณากรอก Username' และ 'กรุณากรอก Password' และไม่มีการเรียก /api/auth/login,-,Playwright E2E,frontend/e2e/website/01-auth.spec.ts,Pass,
+WQA-AUTH-05,Login / บัญชีผู้ใช้,ช่อง Password ปิดบังตัวอักษร (type=password),Low,Security,-,"1. เปิด /login
+2. ตรวจช่อง Password",ช่อง Password เป็น type=password (ตัวอักษรถูกปิดบัง),-,Playwright E2E,frontend/e2e/website/01-auth.spec.ts,Pass,
+WQA-AUTH-06,Login / บัญชีผู้ใช้,ผู้ใช้ใหม่ถูกบังคับเปลี่ยนรหัสผ่าน · ตรวจกฎรหัสผ่าน · เปลี่ยนแล้วเข้าใช้งานได้,High,Functional,Admin สร้างผู้ใช้ใหม่ (รหัสชั่วคราว),"1. Login ด้วยรหัสชั่วคราว → ถูกพาไป /change-password
+2. ลองรหัส < 10 ตัว / ไม่มีตัวใหญ่ / ยืนยันไม่ตรง / ซ้ำรหัสเดิม
+3. ใส่รหัสใหม่ที่ถูกกฎ
+4. ออกจากระบบแล้ว Login ด้วยรหัสเดิมและรหัสใหม่",แต่ละกรณีแสดงข้อความกฎรหัสผ่านที่ถูกต้อง · เปลี่ยนสำเร็จไป /projects · รหัสเดิมใช้ไม่ได้ รหัสใหม่ใช้ได้,Temp-Pass!12345 → New-Strong!Pass1,Playwright E2E,frontend/e2e/website/01-auth.spec.ts,Pass,
+WQA-AUTH-07,Login / บัญชีผู้ใช้,รหัสผ่านปัจจุบันผิด → Server ปฏิเสธและแสดงข้อความ,Medium,Negative,ผู้ใช้ใหม่ต้องเปลี่ยนรหัสผ่าน,"1. ใส่รหัสผ่านปัจจุบันผิด แต่รหัสใหม่ถูกกฎ
+2. กด บันทึก",Server ปฏิเสธ แสดงกล่อง error และยังอยู่หน้าเปลี่ยนรหัสผ่าน,Not-The-Current!1,Playwright E2E,frontend/e2e/website/01-auth.spec.ts,Pass,
+WQA-AUTH-08,Login / บัญชีผู้ใช้,ออกจากระบบ → กลับหน้า Login และเปิดหน้าภายในไม่ได้อีก,High,Functional,Login เป็น admin,"1. กด ออกจากระบบ
+2. พิมพ์ URL /projects",กลับหน้า Login และเปิดหน้าภายในไม่ได้จนกว่าจะ Login ใหม่,-,Playwright E2E,frontend/e2e/website/01-auth.spec.ts,Pass,
+WQA-AUTH-09,Login / บัญชีผู้ใช้,เปิดลิงก์ภายในตอนยังไม่ Login → Login แล้วกลับไปหน้าเดิม,Medium,Functional,ยังไม่ Login,"1. เปิดลิงก์ /web-explorer/history ตรง ๆ
+2. Login",หลัง Login กลับไปหน้า Web History (หน้าที่ตั้งใจเปิด),-,Playwright E2E,frontend/e2e/website/01-auth.spec.ts,Fail (Known defect),DEF-WQA-01
+WQA-AUTH-10,Login / บัญชีผู้ใช้,Session อยู่ใน sessionStorage ของแท็บ — แท็บใหม่ (context ใหม่) ต้อง Login ใหม่,Medium,Security,Login เป็น admin,"1. เปิดแท็บ/หน้าต่างใหม่ (context ใหม่)
+2. เปิด /projects",ต้อง Login ใหม่ (Session เก็บใน sessionStorage ต่อแท็บ),-,Playwright E2E,frontend/e2e/website/01-auth.spec.ts,Pass,
+WQA-NAV-01,เมนูตามสิทธิ์ (UI),Admin เห็นเมนูครบทุกกลุ่ม รวม Settings / Audit Log และปุ่ม Create Project,High,RBAC,Login เป็น admin,"1. เปิด Projects → CAM
+2. ตรวจเมนูด้านซ้าย","เห็นทุกกลุ่มเมนู รวม Upload, Generator ทุกชนิด, GitHub, Settings, Audit Log และปุ่ม Create Project",-,Playwright E2E,frontend/e2e/website/02-navigation-rbac.spec.ts,Pass,
+WQA-NAV-02,เมนูตามสิทธิ์ (UI),Business Analyst: ไม่มี Upload / Generator / GitHub / Settings / Audit Log / Create Project,High,RBAC,Login เป็น ba,"1. เปิด Projects → CAM
+2. ตรวจเมนู",ไม่มี Upload / Postman / Playwright / JMeter / GitHub / Settings / Audit Log / Create Project แต่มี Requirement Explorer,-,Playwright E2E,frontend/e2e/website/02-navigation-rbac.spec.ts,Pass,
+WQA-NAV-03,เมนูตามสิทธิ์ (UI),QA Manual: Upload ได้ แต่ไม่มี Generator (Postman/SQL/Playwright/JMeter) และ GitHub,High,RBAC,Login เป็น qa_manual,"1. เปิด CAM
+2. ตรวจเมนู",มี Upload และ Pytest แต่ไม่มี Postman / SQL / Playwright / JMeter / GitHub / Settings,-,Playwright E2E,frontend/e2e/website/02-navigation-rbac.spec.ts,Pass,
+WQA-NAV-04,เมนูตามสิทธิ์ (UI),QA Automation: Generator + GitHub ได้ แต่ Upload เอกสารไม่ได้,High,RBAC,Login เป็น qa_auto,"1. เปิด CAM
+2. ตรวจเมนู",มี Postman / Playwright / JMeter / GitHub / Test Runs แต่ไม่มี Upload,-,Playwright E2E,frontend/e2e/website/02-navigation-rbac.spec.ts,Pass,
+WQA-NAV-05,เมนูตามสิทธิ์ (UI),พิมพ์ URL หน้าที่ไม่มีสิทธิ์ตรง ๆ (BA → Upload) → แสดง 'ไม่มีสิทธิ์' ไม่แสดงฟอร์ม,High,Security,Login เป็น ba,1. พิมพ์ URL หน้า Upload ของ CAM ตรง ๆ,แสดง 'ไม่มีสิทธิ์' และไม่แสดงช่องอัปโหลด,-,Playwright E2E,frontend/e2e/website/02-navigation-rbac.spec.ts,Pass,
+WQA-NAV-06,เมนูตามสิทธิ์ (UI),Breadcrumb และตัวเลือก Project ที่แถบบน พาไปหน้า Dashboard ของ Project,Low,Functional,Login เป็น admin,"1. เลือก Project CAM จากแถบบน
+2. กด Breadcrumb 'Projects'",ไปหน้าของ Project แล้วกลับหน้ารายการ Projects ได้,-,Playwright E2E,frontend/e2e/website/02-navigation-rbac.spec.ts,Pass,
+WQA-RBAC-01,สิทธิ์ฝั่ง Backend,BA สร้าง Project / อัปโหลด / เริ่ม Recorder / ดู Audit ไม่ได้ (403),Critical,Security,Token ของ ba,"1. เรียก API: สร้าง Project, Paste Text, เริ่ม Recorder, Audit Log, Users",ทุกคำขอได้ 403,-,Playwright API,frontend/e2e/website/02-navigation-rbac.spec.ts,Pass,
+WQA-RBAC-02,สิทธิ์ฝั่ง Backend,QA Manual รัน Test (run.execute) ไม่ได้ แต่ดูประวัติ Web ได้,High,Security,Token ของ qa_manual,"1. GET /web-history
+2. POST /web-explorer/{id}/run",อ่านได้ 200 แต่รันได้ 403,-,Playwright API,frontend/e2e/website/02-navigation-rbac.spec.ts,Pass,
+WQA-RBAC-03,สิทธิ์ฝั่ง Backend,ทุก Role อ่าน /auth/me ได้ และได้รายการสิทธิ์ตรงกับ Role,Medium,RBAC,Token ทุก Role,1. GET /auth/me,ได้รายการสิทธิ์ · มีสิทธิ์ settings เฉพาะ Admin,-,Playwright API,frontend/e2e/website/02-navigation-rbac.spec.ts,Pass,
+WQA-PRJ-01,Projects,รายการ Project แสดง CAM พร้อมจำนวนเอกสาร / Requirement,Medium,Functional,Login เป็น admin,1. เปิด /projects,แถว CAM แสดงชื่อ Project และ Requirements = 9,Seed demo,Playwright E2E,frontend/e2e/website/03-projects-documents.spec.ts,Pass,
+WQA-PRJ-02,Projects,Create Project: ตรวจรูปแบบ Code และชื่อบังคับ,Medium,Negative,Login เป็น admin,"1. กด Create Project
+2. Code = 1ab, เว้นชื่อ
+3. กด สร้าง
+4. กด ยกเลิก",แจ้ง 'ตัวพิมพ์ใหญ่/ตัวเลข 2–16 ตัว เริ่มด้วยตัวอักษร' และ 'กรุณากรอกชื่อ Project' · ยกเลิกแล้ว dialog ปิด,1ab,Playwright E2E,frontend/e2e/website/03-projects-documents.spec.ts,Pass,
+WQA-PRJ-03,Projects,Create Project สำเร็จ (Code ตัวเล็กถูกแปลงเป็นตัวใหญ่) และขึ้นในรายการ,High,Functional,Login เป็น admin,"1. Create Project ด้วย Code ตัวเล็ก + ชื่อ + คำอธิบาย
+2. กด สร้าง",แจ้ง 'สร้าง Project แล้ว' และ Code ตัวใหญ่ขึ้นในรายการ,e2exxxxx,Playwright E2E,frontend/e2e/website/03-projects-documents.spec.ts,Pass,
+WQA-PRJ-04,Projects,Code ซ้ำ → แจ้งข้อผิดพลาด ไม่สร้างซ้ำ,Medium,Negative,มี Project จาก PRJ-03,1. Create Project ด้วย Code ซ้ำ,Dialog ยังเปิดพร้อม error และมี Project code นั้นเพียง 1 รายการ,Code ซ้ำ,Playwright E2E,frontend/e2e/website/03-projects-documents.spec.ts,Pass,
+WQA-PRJ-05,Projects,Project Detail มีแท็บ Documents & Versions / Members / Module Codes,Low,Functional,Project จาก PRJ-03,"1. เปิด Project Detail
+2. กดแท็บ Members",มีแท็บ Documents & Versions / Members / Module Codes และ Members มี admin,-,Playwright E2E,frontend/e2e/website/03-projects-documents.spec.ts,Pass,
+WQA-DOC-01,เอกสาร BRS,"Upload BRS (.txt) → สำเร็จ, มี SHA-256 และประมวลผลจนได้ Requirement",Critical,Functional,Project ใหม่,"1. Upload → เลือก CAM_BRS_v1.txt
+2. เปิด Processing",แถวผลลัพธ์ 'สำเร็จ' พร้อม SHA-256 · Processing = READY_FOR_REVIEW,samples/CAM_BRS_v1.txt,Playwright E2E,frontend/e2e/website/03-projects-documents.spec.ts,Pass,
+WQA-DOC-02,เอกสาร BRS,Upload หลายไฟล์พร้อมกัน: DOCX ผ่าน แต่ PDF เสียแจ้งล้มเหลวเฉพาะไฟล์นั้น,High,Negative,Project ใหม่,1. เลือก sample.docx และ bad.pdf พร้อมกัน,"docx = สำเร็จ, bad.pdf = ล้มเหลว (ไฟล์อื่นไม่ถูกยกเลิก)","samples/sample.docx, bad.pdf",Playwright E2E,frontend/e2e/website/03-projects-documents.spec.ts,Pass,
+WQA-DOC-03,เอกสาร BRS,Paste Text: ตรวจช่องบังคับ แล้วบันทึกข้อความได้,Medium,Functional,Project ใหม่,"1. แท็บ Paste Text → กดบันทึกโดยไม่กรอก
+2. กรอกชื่อ + ข้อความ BRS
+3. กด บันทึกและเริ่มวิเคราะห์",แจ้งช่องบังคับ · บันทึกแล้วไปหน้า Processing ของเอกสาร v1,ข้อความ BRS สั้น,Playwright E2E,frontend/e2e/website/03-projects-documents.spec.ts,Pass,
+WQA-DOC-04,เอกสาร BRS,Upload Version ใหม่ของเอกสารเดิม → Version Compare แสดงส่วนที่เปลี่ยน,High,Functional,มี CAM_BRS_v1.txt ใน Project,"1. Upload → เลือก 'Version ใหม่ของ: CAM_BRS_v1.txt'
+2. อัปโหลด CAM_BRS_v2.txt
+3. เปิด Version Compare",ได้ v2 · หน้า Compare เลือก v1 → v2 อัตโนมัติ และแสดง Section ที่ เพิ่ม/ลบ/เปลี่ยน,samples/CAM_BRS_v2.txt,Playwright E2E,frontend/e2e/website/03-projects-documents.spec.ts,Pass,
+WQA-DOC-05,เอกสาร BRS,Dashboard ของ Project นับเอกสารที่ประมวลผลแล้ว,Low,Functional,DOC-01,1. เปิด Dashboard ของ Project,ตาราง Document Processing มีเอกสารที่อัปโหลด,-,Playwright E2E,frontend/e2e/website/03-projects-documents.spec.ts,Pass,
+WQA-REQ-01,Requirement Explorer,แสดง Requirement ทั้งหมด 9 รายการ พร้อมคะแนน Complete / Clarity,Medium,Functional,CAM demo,1. เปิด Requirement Explorer,แสดง 9 รายการ,-,Playwright E2E,frontend/e2e/website/04-requirements.spec.ts,Pass,
+WQA-REQ-02,Requirement Explorer,ค้นหาด้วย Requirement ID เหลือ 1 รายการ,Medium,Functional,CAM demo,1. พิมพ์ RULE4-003 ในช่องค้นหา,เหลือ 1 แถว REQ-CAM-RULE4-003,RULE4-003,Playwright E2E,frontend/e2e/website/04-requirements.spec.ts,Pass,
+WQA-REQ-03,Requirement Explorer,กรอง Status = CONFLICT แสดงเฉพาะที่ขัดแย้ง,Medium,Functional,CAM demo,1. เลือก Status = CONFLICT,ทุกแถวที่เหลือเป็น CONFLICT,-,Playwright E2E,frontend/e2e/website/04-requirements.spec.ts,Pass,
+WQA-REQ-04,Requirement Explorer,เลือก Requirement → AI Analysis บอกจุดที่ขาด (ไม่มี Expected Result / ไม่ระบุ Role),High,Functional,CAM demo,1. คลิก REQ-CAM-RULE4-003,แผง AI Analysis บอก 'ไม่มี Expected Result' และ 'ไม่ระบุ Role' และมีแผง Source,-,Playwright E2E,frontend/e2e/website/04-requirements.spec.ts,Pass,
+WQA-REQ-05,Requirement Explorer,Approve Requirement ที่รอ Review → สถานะ APPROVED,High,Functional,มี Requirement สถานะ WAITING_FOR_REVIEW,"1. กรอง WAITING_FOR_REVIEW → เลือกแถวแรก
+2. กด Approve (ยืนยันถ้าถาม Source)",แจ้ง 'Approve … แล้ว' และสถานะเป็น APPROVED,-,Playwright E2E,frontend/e2e/website/04-requirements.spec.ts,Pass,
+WQA-REQ-06,Requirement Explorer,เพิ่ม Comment ที่ Requirement (ข้อความบังคับ),Low,Functional,CAM demo,"1. เลือก REQ-CAM-RULE3-001 → Comment
+2. ลองกดยืนยันโดยไม่กรอก
+3. กรอกข้อความแล้วยืนยัน",ปุ่มยืนยันกดไม่ได้เมื่อว่าง · Comment แสดงในแผง Requirement,ข้อความ Comment,Playwright E2E,frontend/e2e/website/04-requirements.spec.ts,Pass,
+WQA-REQ-07,Requirement Explorer,BA ดู Requirement ได้แต่ไม่มีปุ่ม Approve / Edit,High,RBAC,Login เป็น ba,1. เลือก REQ-CAM-RULE3-002,อ่านได้ แต่ไม่มีปุ่ม Approve / Edit,-,Playwright E2E,frontend/e2e/website/04-requirements.spec.ts,Pass,
+WQA-CLR-01,Clarification & Conflict,BA ตอบคำถาม (คำตอบบังคับ) → คำตอบแสดงในตารางพร้อมชื่อผู้ตอบ,High,Functional,Login เป็น ba,"1. แท็บ Questions → กด ตอบ แถวแรก
+2. ลองบันทึกโดยว่าง
+3. กรอกคำตอบ → บันทึกคำตอบ",ปุ่มบันทึกกดไม่ได้เมื่อว่าง · แจ้ง 'บันทึกคำตอบแล้ว' · ตารางแสดงคำตอบ 'โดย ba',คำตอบ BA,Playwright E2E,frontend/e2e/website/04-requirements.spec.ts,Pass,
+WQA-CLR-02,Clarification & Conflict,Resolve Conflict ต้องมีเหตุผล ≥ 3 ตัวอักษร แล้วบันทึกลงประวัติ,High,Functional,มี Conflict สถานะ OPEN,"1. แท็บ Conflicts → 'ไม่ขัดแย้ง — ใช้ทั้งสอง'
+2. ใส่เหตุผล 2 ตัวอักษร
+3. ใส่เหตุผลเต็ม → ยืนยัน",ยืนยันไม่ได้เมื่อเหตุผล < 3 ตัว · Resolve แล้วสถานะ RESOLVED พร้อมเหตุผลในประวัติ,เหตุผลการ Resolve,Playwright E2E,frontend/e2e/website/04-requirements.spec.ts,Pass,
+WQA-CLR-03,Clarification & Conflict,แท็บ Assumptions ติดป้าย 'AI ASSUMPTION - NOT FOUND IN BRS',Medium,Functional,CAM demo,1. แท็บ Assumptions,ทุก Assumption ติดป้าย 'AI ASSUMPTION - NOT FOUND IN BRS',-,Playwright E2E,frontend/e2e/website/04-requirements.spec.ts,Pass,
+WQA-DASH-01,Dashboard,Dashboard: KPI Requirement = 9 และลิงก์ Workflow พาไปหน้าที่เกี่ยวข้อง,Medium,Functional,CAM demo,"1. เปิด Dashboard
+2. กดลิงก์ Workflow 'Requirement (AI Draft)'",KPI '9 Requirement' และลิงก์พาไปหน้า Requirement,-,Playwright E2E,frontend/e2e/website/04-requirements.spec.ts,Pass,
+WQA-TRC-01,Traceability,Traceability แสดงสาย Document → Section → Requirement และลิงก์กลับ Requirement,Medium,Functional,CAM demo,"1. เปิด Traceability
+2. คลิกลิงก์ REQ-CAM-RULE3-001",เห็นสาย Document v1 → Section → Requirement และลิงก์ไป Requirement Explorer,-,Playwright E2E,frontend/e2e/website/04-requirements.spec.ts,Pass,
+WQA-TD-01,Test Scenario / Test Case,BA สร้าง Scenario ไม่ได้ (ปุ่มไม่แสดง / API 403),High,RBAC,Login เป็น ba,"1. เปิด Test Scenarios
+2. เรียก API generate",ไม่มีปุ่ม Generate Scenarios · API ได้ 403,-,Playwright E2E,frontend/e2e/website/05-test-design-automation.spec.ts,Pass,
+WQA-TD-02,Test Scenario / Test Case,Generate Scenarios จาก Requirement ที่ Approved → ได้ TS-CAM-xxx และไม่สร้างซ้ำเมื่อกดอีกครั้ง,High,Functional,Requirement ที่รอ Review ถูก Approve,"1. กด Generate Scenarios
+2. กด Generate ซ้ำ",ได้ TS-CAM-xxx · กดซ้ำไม่เพิ่ม Scenario ซ้ำ,-,Playwright E2E,frontend/e2e/website/05-test-design-automation.spec.ts,Pass,
+WQA-TD-03,Test Scenario / Test Case,สร้าง Test Case จาก Scenario ที่เลือก → ไปหน้า Test Cases,High,Functional,TD-02,"1. กด 'เลือกทั้งหมดที่ยังไม่มี Test Case'
+2. กด 'สร้าง Test Case จาก Scenario'",ไปหน้า Test Cases และมี TC-CAM-xxx,-,Playwright E2E,frontend/e2e/website/05-test-design-automation.spec.ts,Pass,
+WQA-TD-04,Test Scenario / Test Case,ค้นหา / กรอง Test Case และเปิดรายละเอียด (Steps + Expected),Medium,Functional,TD-03,"1. กรอง Test Type = Negative
+2. เปิดแถวแรก",แถวเป็น Negative · หน้ารายละเอียดมีปุ่ม Approve,-,Playwright E2E,frontend/e2e/website/05-test-design-automation.spec.ts,Pass,
+WQA-TD-05,Test Scenario / Test Case,Approve ทั้งหมด (Bulk + ยืนยัน) → Lock แก้ไม่ได้จนสร้าง Version ใหม่,High,Functional,TD-03,1. ติ๊ก เลือกทั้งหมด → Approve (n) → ยืนยัน,ทุกแถวแสดง 🔒 Locked,-,Playwright E2E,frontend/e2e/website/05-test-design-automation.spec.ts,Pass,
+WQA-TD-06,Test Scenario / Test Case,Export Excel ดาวน์โหลดไฟล์ .xlsx,Medium,Functional,มี Test Case,1. กด Export Excel,ดาวน์โหลดไฟล์ .xlsx,-,Playwright E2E,frontend/e2e/website/05-test-design-automation.spec.ts,Pass,
+WQA-AUTO-01,Automation Generator,Generate Pytest จาก Test Case ที่ Approved → เห็นไฟล์ในโปรเจกต์และคำอธิบาย (tip),High,Functional,Test Case ถูก Approve,"1. เปิด Automation → Pytest
+2. เลือกทั้งหมด → Generate",เห็น Code Editor และไฟล์ app/services/rule_service.py,-,Playwright E2E,frontend/e2e/website/05-test-design-automation.spec.ts,Pass,
+WQA-RUN-01,Test Runs,Run pytest ในเครื่อง → สถานะ PASSED และผลราย Test Case,Critical,Functional,AUTO-01,"1. กด Run
+2. เปิดแท็บ Logs",ไปหน้า Test Run สถานะ PASSED · ผลราย TC-CAM · Log มีคำว่า passed,-,Playwright E2E,frontend/e2e/website/05-test-design-automation.spec.ts,Pass,
+WQA-RUN-02,Test Runs,หน้า Test Runs แสดงรายการ Run และ Dashboard อัปเดตผล Run ล่าสุด,Medium,Functional,RUN-01,"1. เปิด Test Runs
+2. เปิด Dashboard",รายการ Run แรกเป็น PASSED · Dashboard แสดงผล Run ล่าสุด,-,Playwright E2E,frontend/e2e/website/05-test-design-automation.spec.ts,Pass,
+WQA-WEX-01,Web Explorer,URL ไม่ถูกต้อง → แจ้ง 'URL ต้องขึ้นต้นด้วย http:// หรือ https://',Medium,Negative,Login เป็น admin,1. ใส่ URL ftp://example.test/file → สำรวจหน้าเว็บ,แจ้ง 'URL ต้องขึ้นต้นด้วย http:// หรือ https://' และไม่สร้างผลสำรวจ,ftp://example.test/file,Playwright E2E,frontend/e2e/website/06-web-explorer.spec.ts,Pass,
+WQA-WEX-02,Web Explorer,"สำรวจหน้า Login + ลอง Login → ภาพก่อน/หลัง Login, Test Case และประวัติการสำรวจ",Critical,Functional,Practice site ทำงาน,"1. ใส่ URL หน้า Login ฝึก + Username/Password
+2. ปิดโหมดฝึก → สำรวจหน้าเว็บ",เห็นภาพก่อน/หลัง Login · ประวัติแสดง Login 'สำเร็จ' · แท็บ Test Cases มี TC-LOGIN-xxx,demo / demo-pass-1,Playwright E2E,frontend/e2e/website/06-web-explorer.spec.ts,Pass,
+WQA-WEX-03,Web Explorer,แท็บ pytest: เห็นไฟล์ในโปรเจกต์ (conftest / tests) และ Run pytest แล้วผ่านทั้งหมด,Critical,Functional,WEX-02,"1. เปิดผลสำรวจ → แท็บ ③ pytest + รัน
+2. กด Run pytest",เห็นไฟล์ conftest.py · ผลการรันล่าสุด PASSED และ 'มี Login',-,Playwright E2E,frontend/e2e/website/06-web-explorer.spec.ts,Pass,
+WQA-WEX-04,Web Explorer,ดาวน์โหลดโปรเจกต์ pytest (ZIP),Medium,Functional,WEX-02,1. กด ดาวน์โหลดโปรเจกต์ pytest (ZIP),ได้ไฟล์ webtest_*.zip,-,Playwright E2E,frontend/e2e/website/06-web-explorer.spec.ts,Pass,
+WQA-WEX-05,Web Explorer,สำรวจหน้าเดิมซ้ำ → ไม่ได้ Test Case ซ้ำ (ประวัติบอกจำนวนครั้งที่เคยสำรวจ),High,Functional,WEX-02,1. สำรวจหน้าเดิมอีกครั้ง,แสดง 'ก่อนรอบนี้สำรวจแล้ว 1 ครั้ง' (ไม่ออกแบบ Test Case ซ้ำ),-,Playwright E2E,frontend/e2e/website/06-web-explorer.spec.ts,Pass,
+WQA-WEX-06,Web Explorer,QA Manual (ไม่มีสิทธิ์ Generate Automation) เปิดหน้า Web Explorer → แจ้งสิทธิ์ ไม่แสดงฟอร์มสำรวจ,High,RBAC,Login เป็น qa_manual,1. เปิด /web-explorer,แจ้ง 'ต้องมีสิทธิ์ Generate Automation' · ไม่มีฟอร์มสำรวจ · ไม่มีเมนู Web Explorer,-,Playwright E2E,frontend/e2e/website/06-web-explorer.spec.ts,Pass,
+WQA-WEX-07,Web Explorer,ลบผลสำรวจ → หายจากรายการ แต่ประวัติ Test Case ของหน้ายังอยู่,Medium,Functional,มีผลสำรวจ,"1. เปิดผลสำรวจ → กด ลบ
+2. เปิด Web History",ผลสำรวจหายจากรายการ แต่ประวัติ Test Case ของหน้ายังอยู่,-,Playwright E2E,frontend/e2e/website/06-web-explorer.spec.ts,Pass,
+WQA-REC-01,Web Recorder,เริ่มบันทึก → เปิดหน้าต่าง browser และแสดงสถานะ 'กำลังบันทึก รอบที่ 1',Critical,Functional,Login เป็น admin,"1. Web Explorer → บันทึกการใช้งาน (Record)
+2. ใส่ URL + ชื่อ Test Case แรก → ▶ เริ่มบันทึก",หน้าต่าง browser เปิดหน้า URL · สถานะ 'กำลังบันทึก รอบที่ 1',shop.html,Playwright E2E,frontend/e2e/website/07-web-recorder.spec.ts,Pass,
+WQA-REC-02,Web Recorder,บันทึกได้ครั้งละ 1 รายการ: เริ่มซ้ำผ่าน API → 409 RECORDER_BUSY,High,Negative,REC-01 กำลังบันทึก,1. เริ่มบันทึกอีกรายการผ่าน API,ได้ 409 RECORDER_BUSY,-,Playwright E2E,frontend/e2e/website/07-web-recorder.spec.ts,Pass,
+WQA-REC-03,Web Recorder,คลิกในหน้าต่าง → ขั้นตอนขึ้นทันที ใช้ชื่อจริงของเมนู (ไม่ใช่ตัวพิมพ์ใหญ่จาก CSS / ไอคอน),Critical,Functional,REC-01,1. ในหน้าต่าง: คลิกเมนู WOMEN (CSS ตัวใหญ่ + ไอคอน) แล้ว Dress,"ตาราง Script แสดง 'กดลิงก์ ""Women""' และ 'กดลิงก์ ""Dress"" → ไปหน้า /register.html' · คำสั่งใช้ NAME(""Women"")",-,Playwright E2E,frontend/e2e/website/07-web-recorder.spec.ts,Pass,
+WQA-REC-04,Web Recorder,ตรวจสอบข้อความ (ต้องเห็น) + Add Test Case ต่อจากจุดเดิม,High,Functional,REC-03,"1. เพิ่มตรวจข้อความ 'สมัครสมาชิก'
+2. Add Test Case 'กรอกชื่อสมัครสมาชิก'
+3. ในหน้าต่าง: กด ลงทะเบียน + กรอกชื่อ",มีขั้น 'ตรวจว่าเห็นข้อความ' · Test Case 2 จาก 'กำลังรอขั้นตอนแรก' เป็น '2 ขั้นตอน',สมหญิง ทดสอบ,Playwright E2E,frontend/e2e/website/07-web-recorder.spec.ts,Pass,
+WQA-REC-05,Web Recorder,⏸ หยุดบันทึก = จบรอบ: สิ่งที่ทำระหว่างหยุดไม่ถูกบันทึก และมีฟอร์มเริ่มรอบใหม่ (URL = หน้าปัจจุบัน),High,Functional,REC-04,"1. กด ⏸ หยุดบันทึก (จบรอบนี้)
+2. ในหน้าต่าง: กรอกอีเมล",แสดง 'หยุดบันทึกแล้ว (จบรอบที่ 1)' · ฟอร์มรอบใหม่เติม URL หน้าปัจจุบัน · สิ่งที่ทำระหว่างหยุดไม่ถูกบันทึก,paused@example.test,Playwright E2E,frontend/e2e/website/07-web-recorder.spec.ts,Pass,
+WQA-REC-06,Web Recorder,▶ เริ่มรอบใหม่ที่ URL อื่น → Test Case ใหม่แบบอิสระ (⟳) และหน้าต่างเปิด URL นั้น,Critical,Functional,REC-05,"1. ใส่ชื่อ + URL index.html → ▶ เริ่มรอบใหม่
+2. ในหน้าต่าง: กรอกชื่อผู้ใช้",สถานะ 'รอบที่ 2' · หน้าต่างเปิด index.html · ป้าย '⟳ Test Case 3' และขั้น 'เปิดหน้า … (เริ่ม Test Case ใหม่)',-,Playwright E2E,frontend/e2e/website/07-web-recorder.spec.ts,Pass,
+WQA-REC-07,Web Recorder,บันทึกตอน Test Case ล่าสุดยังว่าง → เตือนก่อน และกลับไปบันทึกต่อได้,High,Functional,REC-06,"1. Add Test Case แล้วกดบันทึกทันที
+2. กด กลับไปบันทึกต่อ
+3. ในหน้าต่าง: กด เข้าสู่ระบบ",เตือนว่า Test Case ล่าสุดยังไม่มีขั้นตอน 'จะไม่ถูกสร้าง' · กลับไปบันทึกต่อได้ · Test Case 4 มีขั้นตอน,-,Playwright E2E,frontend/e2e/website/07-web-recorder.spec.ts,Pass,
+WQA-REC-08,Web Recorder,"บันทึกเป็น Test Case → ปิดหน้าต่าง, สร้าง 4 Test Case และหน้า Record กลับสู่สถานะเริ่มต้น",Critical,Functional,REC-07,1. กด ■ บันทึกเป็น Test Case และปิด browser,แจ้ง 'บันทึกแล้ว … · 4 Test Case' · แท็บ Test Cases มีทั้ง 4 สถานการณ์ · หน้า Record reset และจำ URL ล่าสุด,-,Playwright E2E,frontend/e2e/website/07-web-recorder.spec.ts,Pass,
+WQA-REC-09,Web Recorder,⑤ Script ทีละขั้น: ทุกขั้นบอก เหตุการณ์ / อยู่ตรงไหน / คำสั่ง Playwright / ความหมาย,Medium,Functional,REC-08,1. เปิดผลบันทึก → ⑤ Script ทีละขั้น,มีคอลัมน์ 'อยู่ตรงไหน' (ส่วนของหน้าจอ) และคำสั่ง page.goto ของรอบใหม่,-,Playwright E2E,frontend/e2e/website/07-web-recorder.spec.ts,Pass,
+WQA-REC-10,Web Recorder,④ Test Automation (เล่นซ้ำ) → ผ่านทุกขั้น พร้อมภาพประกอบ,Critical,Functional,REC-08,1. ④ Test Automation → ความเร็ว เร็ว → ▶ เล่นซ้ำ,PASSED · ผ่าน n/n · มีภาพประกอบขั้นที่ 1,-,Playwright E2E,frontend/e2e/website/07-web-recorder.spec.ts,Pass,
+WQA-REC-11,Web Recorder,ปิดหน้าต่าง browser ทั้งที่ยังไม่ได้ทำอะไร แล้วกดบันทึก → ไม่ค้าง ระบบจบรอบและพร้อมเริ่มใหม่,High,Negative,Login เป็น admin,"1. เริ่มบันทึกแล้วปิดหน้าต่างทันที
+2. กดบันทึก",ระหว่างยังไม่มีขั้นตอนปุ่มบันทึกกดไม่ได้ · หลังปิดหน้าต่างกดได้ · แจ้งไม่มีขั้นตอน และกลับหน้าเริ่มบันทึก (จำ URL),-,Playwright E2E,frontend/e2e/website/07-web-recorder.spec.ts,Pass,
+WQA-REC-12,Web Recorder,URL เริ่มต้นไม่ถูกต้อง / ไม่มีสิทธิ์ → Server ปฏิเสธ (422 / 403),Medium,Negative,ไม่มีการบันทึกค้าง,"1. เริ่มบันทึกด้วย ftp://
+2. เริ่มบันทึกด้วยบัญชี ba",422 และ 403,-,Playwright E2E,frontend/e2e/website/07-web-recorder.spec.ts,Pass,DEF-WQA-05
+WQA-REC-13,Web Recorder,ทำขั้นตอนแล้วปิดหน้าต่าง browser (ไม่ได้กดบันทึกก่อน) → ขั้นตอนไม่หาย กดบันทึกได้ Test Case,Critical,Functional,Login เป็น admin,"1. เริ่มบันทึก → กด ลงทะเบียน ในหน้าต่าง
+2. ปิดหน้าต่าง browser เอง
+3. กดบันทึก",ไม่มี error · ได้ 1 Test Case 1 ขั้นตอน (ขั้นตอนไม่หาย),DEF-WQA-02,Playwright E2E,frontend/e2e/website/07-web-recorder.spec.ts,Pass,DEF-WQA-02
+WQA-HIS-01,Web History + Detail,เมนู Web History → แท็บรายหน้าเว็บแสดงหน้าที่เคยสำรวจ พร้อมจำนวน Test Case สะสม,High,Functional,เคยสำรวจหน้า Login ฝึก,1. เมนู Web History → แท็บ รายหน้าเว็บ → คลิกหน้า,"แสดงหน้า 127.0.0.1:8765/index.html, KPI 'Test Case สะสม' และตาราง Test Case",-,Playwright E2E,frontend/e2e/website/08-web-history.spec.ts,Pass,
+WQA-HIS-02,Web History + Detail,ค้นหา / กรองกลุ่ม Test Case ในหน้าประวัติ,Medium,Functional,HIS-01,"1. กรองกลุ่ม Login
+2. ล้างกลุ่ม แล้วค้นหา WP-001",กรองแล้วจำนวนลดลง · ค้นหาเหลือ 1 แถว WP-001,WP-001,Playwright E2E,frontend/e2e/website/08-web-history.spec.ts,Pass,
+WQA-HIS-03,Web History + Detail,คลิกแถว Test Case → หน้ารายละเอียด: เงื่อนไขก่อนเริ่ม / ขั้นตอน / ผลที่คาดหวัง / ที่มา / โค้ด,Critical,Functional,HIS-01,1. คลิกแถว Test Case (ช่องขั้นตอน),"ไปหน้า /web-explorer/history/case?key=…&hid=… มี Test Case ID, Pre-condition, Steps, Expected, ที่มา และโค้ด def test_",-,Playwright E2E,frontend/e2e/website/08-web-history.spec.ts,Pass,
+WQA-HIS-04,Web History + Detail,ปุ่ม ‹ ก่อนหน้า / ถัดไป › เลื่อนทีละ Test Case และปุ่ม Back ของ browser กลับได้,High,Functional,HIS-03,"1. เปิด WP-001 → ถัดไป ›
+2. กด Back ของ browser
+3. ← กลับไปรายการ Test Case",ก่อนหน้าปิดที่ข้อ 1 · ไป WP-002 (ข้อที่ 2) · Back กลับข้อที่ 1 · กลับหน้ารายการได้,-,Playwright E2E,frontend/e2e/website/08-web-history.spec.ts,Pass,
+WQA-HIS-05,Web History + Detail,คัดลอกเป็นข้อความ (Clipboard) มี ID / ขั้นตอน / ผลที่คาดหวัง,Low,Functional,HIS-03,1. กด คัดลอกเป็นข้อความ,"Clipboard มี WP-001, 'ขั้นตอน:' และ 'ผลที่คาดหวัง:'",-,Playwright E2E,frontend/e2e/website/08-web-history.spec.ts,Pass,
+WQA-HIS-06,Web History + Detail,Test Case ID ที่ไม่มี → แจ้ง 'ไม่พบ Test Case' (ไม่ใช่หน้าว่าง),Medium,Negative,-,1. เปิด …/case?hid=WP-999,แจ้ง 'ไม่พบ Test Case WP-999',WP-999,Playwright E2E,frontend/e2e/website/08-web-history.spec.ts,Pass,
+WQA-HIS-07,Web History + Detail,Export CSV และ pytest รวมทุก TC (ZIP) ของหน้า,Medium,Functional,HIS-01,"1. กด Export CSV (Excel)
+2. กด pytest รวมทุก TC (ZIP)",ได้ไฟล์ .csv และ .zip,-,Playwright E2E,frontend/e2e/website/08-web-history.spec.ts,Pass,
+WQA-HIS-08,Web History + Detail,QA Manual / BA อ่านประวัติและรายละเอียด Test Case ได้ (สิทธิ์ auto.view),Medium,RBAC,Login เป็น ba,1. เปิดหน้ารายละเอียด WP-001,อ่านได้ (สิทธิ์ auto.view),-,Playwright E2E,frontend/e2e/website/08-web-history.spec.ts,Pass,
+WQA-LIB-01,คลัง Test Case รวม,คลังรวมแสดง TL-ID ไม่ซ้ำ และกรองตามหมวด,High,Functional,มีประวัติ Test Case,"1. เปิด Web History (แท็บคลังรวม)
+2. กดหมวด Login",ทุกแถวมี TL-ID ไม่ซ้ำ · กรองหมวดแล้วแสดงเฉพาะหมวดนั้น,-,Playwright E2E,frontend/e2e/website/08-web-history.spec.ts,Pass,
+WQA-LIB-02,คลัง Test Case รวม,คลิก WP-ID ในคอลัมน์ 'พบในเว็บ' → เปิดรายละเอียด Test Case ของหน้านั้น,Medium,Functional,LIB-01,1. คลิก WP-ID ในคอลัมน์ 'พบในเว็บ',เปิดหน้ารายละเอียด Test Case ของหน้านั้น,-,Playwright E2E,frontend/e2e/website/08-web-history.spec.ts,Pass,
+WQA-LIB-03,คลัง Test Case รวม,ดาวน์โหลด Excel (.xlsx) ตามตัวกรอง,Medium,Functional,LIB-01,1. กด ดาวน์โหลด Excel (.xlsx),ได้ไฟล์ web_test_case_library.xlsx,-,Playwright E2E,frontend/e2e/website/08-web-history.spec.ts,Pass,
+WQA-ADM-01,Settings / Users,เพิ่มผู้ใช้ใหม่ (Role QA Automation) → อยู่ในตาราง และต้องเปลี่ยนรหัสผ่านเมื่อ Login ครั้งแรก,High,Functional,Login เป็น admin,"1. Settings → เพิ่มผู้ใช้ (Role QA Automation) → บันทึก
+2. ออกจากระบบแล้ว Login ด้วยผู้ใช้ใหม่",แจ้ง 'เพิ่มผู้ใช้แล้ว' และอยู่ในตาราง · Login ครั้งแรกถูกพาไปเปลี่ยนรหัสผ่าน,Temp-Pass!12345,Playwright E2E,frontend/e2e/website/09-admin.spec.ts,Pass,
+WQA-ADM-02,Settings / Users,รหัสผ่านเริ่มต้นสั้นกว่า 10 ตัว → Server ปฏิเสธ ไม่สร้างผู้ใช้,Medium,Negative,Login เป็น admin,1. เพิ่มผู้ใช้ด้วยรหัสผ่าน 'short',ไม่สร้างผู้ใช้ (dialog ยังเปิด),short,Playwright E2E,frontend/e2e/website/09-admin.spec.ts,Pass,
+WQA-ADM-03,Settings / Users,เปลี่ยน Role ในตาราง → มีผลกับสิทธิ์ทันที,Medium,Functional,ADM-01,1. เปลี่ยน Role ของผู้ใช้เป็น Business Analyst,แจ้ง 'เปลี่ยน Role แล้ว' และ API คืน roles = ['BA'],-,Playwright E2E,frontend/e2e/website/09-admin.spec.ts,Pass,
+WQA-ADM-04,Settings / Users,ปิดบัญชี → Login ไม่ได้ (ข้อความกลาง ๆ) · เปิดคืนได้,High,Security,ADM-01,"1. กด ปิด ที่แถวผู้ใช้
+2. ผู้ใช้นั้นลอง Login",แจ้ง 'ปิดบัญชีแล้ว' · Login ไม่ได้,-,Playwright E2E,frontend/e2e/website/09-admin.spec.ts,Pass,
+WQA-ADM-05,Settings / Users,หน้า Settings ไม่แสดงค่า Secret (แสดงแค่สถานะ Configured / NEEDS_CONFIGURATION),Critical,Security,Login เป็น admin,"1. เปิดแท็บ AI Provider / GitHub / Network Sharing / Session
+2. GET /api/settings",ไม่แสดงค่า Secret ใด ๆ (แสดงเพียงสถานะ),-,Playwright E2E,frontend/e2e/website/09-admin.spec.ts,Pass,
+WQA-ADM-06,Settings / Users,แก้ค่า Settings (Runner Timeout) → ปุ่มบันทึกแสดงจำนวนที่แก้ และบันทึกได้,Low,Functional,Login เป็น admin,"1. แท็บ Test Runner → Timeout = 150
+2. กด บันทึก (1) → reload",แจ้ง 'บันทึก Settings แล้ว' และค่าคงอยู่หลัง reload,150,Playwright E2E,frontend/e2e/website/09-admin.spec.ts,Pass,
+WQA-AUD-01,Audit Log,บันทึก LOGIN_FAILED และกรองด้วย Action / User ได้,High,Security,มี Login ผิด 1 ครั้ง,"1. Audit Log → Action = LOGIN_FAILED
+2. User = admin",แสดงรายการ LOGIN_FAILED ของ admin,-,Playwright E2E,frontend/e2e/website/09-admin.spec.ts,Pass,
+WQA-AUD-02,Audit Log,Audit Log ไม่เก็บรหัสผ่าน (ทั้งที่ถูกและผิด) และ Export CSV ได้,Critical,Security,Login เป็น admin,"1. Export CSV
+2. ค้นรหัสผ่านในไฟล์",ได้ audit_log.csv และไม่มีรหัสผ่าน (ถูก/ผิด/ชั่วคราว) ในไฟล์,-,Playwright E2E,frontend/e2e/website/09-admin.spec.ts,Pass,
+WQA-AUD-03,Audit Log,ทุกรายการมี Correlation ID 8 หลัก และมี LOGIN / PASSWORD_CHANGED,Medium,Functional,-,1. GET /api/audit-logs,มี LOGIN / PASSWORD_CHANGED และ correlation_id 8 หลัก,-,Playwright E2E,frontend/e2e/website/09-admin.spec.ts,Pass,
+WQA-AUD-04,Audit Log,ผู้ใช้ที่ไม่ใช่ Admin เปิด /audit-log และ /settings ไม่ได้,High,RBAC,Login เป็น qa_auto,1. เปิด /audit-log และ /settings,แสดง 'เฉพาะ Admin' ไม่มีข้อมูลหรือปุ่มจัดการ,-,Playwright E2E,frontend/e2e/website/09-admin.spec.ts,Pass,
+WQA-API-01,API Contract,/api/health เปิดได้โดยไม่ต้อง Login และบอกสถานะ ok,High,API,-,1. GET /api/health,200 status ok (ไม่ต้อง Login),-,Playwright API,frontend/e2e/website/10-api-security.spec.ts,Pass,
+WQA-API-02,API Contract,ทุก Endpoint ภายในต้อง Login (401 เมื่อไม่มี / Token ปลอม),Critical,Security,-,1. เรียก 9 Endpoint ภายในแบบไม่มี Token และ Token ปลอม,ทุกครั้งได้ 401,-,Playwright API,frontend/e2e/website/10-api-security.spec.ts,Pass,
+WQA-API-03,API Contract,รูปแบบ Error มาตรฐาน: code / user_message / timestamp / retryable / suggested_action / correlation_id + Header X-Correlation-Id,Medium,API,-,1. GET /api/projects โดยไม่ Login,"Error มี code, user_message, timestamp, retryable, suggested_action, correlation_id + Header X-Correlation-Id และไม่มี technical",-,Playwright API,frontend/e2e/website/10-api-security.spec.ts,Pass,
+WQA-API-04,API Contract,Validation: ส่งข้อมูลผิดรูปแบบ → 422 พร้อมข้อความ (ไม่ใช่ 500),Medium,API,-,1. ส่ง body ผิดรูปแบบไป login / projects / web-explorer,ได้ 422 (ไม่ใช่ 500),javascript:alert(1),Playwright API,frontend/e2e/website/10-api-security.spec.ts,Pass,
+WQA-API-05,API Contract,Session ต่ออายุอัตโนมัติ: ทุก Request ที่ Login แล้วได้ Header X-Refreshed-Token,Medium,API,-,1. GET /api/auth/me ด้วย Token,มี Header X-Refreshed-Token,-,Playwright API,frontend/e2e/website/10-api-security.spec.ts,Pass,
+WQA-API-06,API Contract,ข้อมูลผู้ใช้ไม่มี password_hash / token ของคนอื่น,High,Security,-,1. GET /api/users,ไม่มี password_hash / bcrypt hash / token,-,Playwright API,frontend/e2e/website/10-api-security.spec.ts,Pass,
+WQA-SEC-01,Security,Path traversal ใน Web History / Screenshot ถูกปฏิเสธ (404) ไม่หลุดไฟล์ระบบ,High,Security,-,1. เรียก Web History / Screenshot ด้วย ..%2F,ได้ 404/422 ไม่หลุดไฟล์ระบบ,..%2F..%2Fsecrets,Playwright API,frontend/e2e/website/10-api-security.spec.ts,Pass,
+WQA-SEC-02,Security,Header ความปลอดภัยของหน้าเว็บ: X-Frame-Options / nosniff / CSP / no-referrer,High,Security,-,1. GET /login ของหน้าเว็บ,"X-Frame-Options DENY, nosniff, no-referrer, CSP frame-ancestors 'none', ไม่มี X-Powered-By",-,Playwright API,frontend/e2e/website/10-api-security.spec.ts,Pass,
+WQA-SEC-03,Security,Token อยู่ใน sessionStorage ไม่ใช่ Cookie / localStorage (ปิดแท็บ = ออกจากระบบ),Medium,Security,-,1. Login แล้วตรวจที่เก็บ Token,Token อยู่ใน sessionStorage เท่านั้น (ไม่อยู่ใน Cookie / localStorage),-,Playwright API,frontend/e2e/website/10-api-security.spec.ts,Pass,
+WQA-SEC-04,Security,ข้อความ Error ฝั่งผู้ใช้ไม่เผยรายละเอียดทางเทคนิค (stack trace / path),Medium,Security,-,1. GET /web-explorer/does-not-exist,404 ไม่มี Traceback / path ของ Server,-,Playwright API,frontend/e2e/website/10-api-security.spec.ts,Pass,
+WQA-PERF-01,Performance,Load: 50 ผู้ใช้พร้อมกัน 20–30 วินาที (Projects → Dashboard → Requirements → Web History → Library),Critical,Performance,Backend เปิดอยู่ · บัญชีทดสอบ,1. python perf/webqa_perf.py --mode load --users 50 --duration 30 --password …,"p95 < 2,000 ms และ error < 2% · Server ยังตอบได้หลังทดสอบ",-,Performance script,perf/webqa_perf.py --mode load,"ผ่าน: 114 req/s · p95 1,027 ms · error 0% (หลังแก้ DEF-WQA-03/04)","DEF-WQA-03, DEF-WQA-04"
+WQA-PERF-02,Performance,Stress: เพิ่มผู้ใช้ 10 → 25 → 50 → 100 → 200 → 400 หา Breaking point,High,Performance,Backend เปิดอยู่,"1. python perf/webqa_perf.py --mode stress --levels 10,25,50,100,200,400 --step 15 --password …",รายงานระดับที่เกิน SLA ครั้งแรก (Breaking point) และไม่มี error 5xx,-,Performance script,perf/webqa_perf.py --mode stress,"Breaking point ≈ 100 ผู้ใช้ (p95 2,735 ms) · error 0%",
+WQA-PERF-03,Performance,Spike: 5 → 300 → 5 ผู้ใช้ ระบบต้องฟื้นตัว,High,Performance,Backend เปิดอยู่,1. python perf/webqa_perf.py --mode spike --users 300 --password …,หลัง spike ช่วงสุดท้ายกลับมาผ่าน SLA (ฟื้นตัว),-,Performance script,perf/webqa_perf.py --mode spike,ฟื้นตัว: p95 73 ms · ช่วง spike p95 9.2 s error 0.62%,
+WQA-PERF-04,Performance,Rate limit Login 5 ครั้ง/นาที/IP (กันเดารหัสผ่าน),Critical,Security,Backend ใช้ค่า .env ปกติ,1. python perf/webqa_perf.py --mode ratelimit --password …,Login ผิดครั้งที่ 5+ ได้ 429,-,Performance script,perf/webqa_perf.py --mode ratelimit,ผ่าน: 401×4 แล้ว 429,
+WQA-PERF-05,Performance,Rate limit API 600 ครั้ง/นาที/IP,Medium,Performance,Backend ใช้ค่า .env ปกติ,1. python perf/webqa_perf.py --mode ratelimit --password …,เกิน ~600 ครั้ง/นาที ได้ 429 (ไม่ใช่ server ล่ม),-,Performance script,perf/webqa_perf.py --mode ratelimit,ผ่าน: 429 ครั้งแรกที่ request #592,
+WQA-PERF-06,Performance,คำขอพร้อมกันเกินจำนวน connection ของฐานข้อมูล → Server ต้องไม่ค้าง,Critical,Performance,Backend เปิดอยู่,"1. ยิง 50 ผู้ใช้ 20 วินาที
+2. เรียก /api/health หลังจบ",ตอบ /api/health ภายใน 1 วินาทีหลังโหลดจบ,-,Performance script,perf/webqa_perf.py --mode load,ผ่าน (ก่อนแก้: ค้างถาวร ต้อง restart),DEF-WQA-03
+WQA-PERF-07,Performance,เปิดคลัง Test Case พร้อมกัน 12 คน × 15 ครั้ง → ไฟล์ index ไม่เสีย TL-ID ไม่ซ้ำ,High,Performance,-,1. pytest backend/tests/test_web_explorer.py -k concurrent,ไม่มี error · TL-ID ไม่ซ้ำ,-,Backend pytest,backend pytest :: test_library_and_history_files_survive_concurrent_requests,ผ่าน,DEF-WQA-04
+WQA-REC-14,Web Recorder,ปิดหน้าต่าง Recorder ระหว่างที่ระบบกำลังรอ → ขั้นตอนไม่หาย (ระดับ Service),Critical,Functional,-,1. pytest backend/tests/test_web_explorer.py -k closing_the_recorder,สถานะ stopped และมีขั้นตอนครบ,-,Backend pytest,backend pytest :: test_closing_the_recorder_window_keeps_the_steps,ผ่าน,DEF-WQA-02
+WQA-MAN-01,Manual / Exploratory,Recorder บน Windows (หน้าต่างจริง) — เว็บที่ขอ passkey ไม่เด้งหน้าต่าง Windows Security / บัญชี Microsoft,High,Functional,RUN-DEV.bat บน Windows,"1. Record เว็บที่มีปุ่ม Sign in with passkey
+2. สังเกตหน้าต่างของ Windows",ไม่มีหน้าต่าง Windows Security เด้งขึ้น,-,Manual,Manual,ยังไม่ทดสอบบน Windows,
+WQA-MAN-02,Manual / Exploratory,หน้าเว็บบนจอแคบ (≤ 1100 px) / ซูม 150% อ่านได้ ไม่มีปุ่มซ้อนกัน,Low,Usability,-,"1. ย่อหน้าต่าง browser เหลือ 1000 px
+2. เปิด Web Explorer / History / Detail",ตารางเลื่อนแนวนอนได้ ปุ่มกดได้ครบ,-,Manual,Manual,ยังไม่ทดสอบ,
+WQA-MAN-03,Manual / Exploratory,Session หมดอายุเมื่อไม่ใช้งานเกิน SESSION_MINUTES (30 นาที),Medium,Security,Login เป็น admin,"1. ไม่ใช้งาน 31 นาที
+2. คลิกเมนูใดก็ได้",ถูกพาไปหน้า Login พร้อมเหตุผล,SESSION_MINUTES=1 เพื่อทดสอบเร็ว,Manual,Manual,ยังไม่ทดสอบ,
+WQA-MAN-04,Manual / Exploratory,Exploratory: ใช้ Recorder กับเว็บจริงที่มี iframe / แท็บใหม่ / popup โฆษณา,Medium,Exploratory,เว็บทดสอบสาธารณะ เช่น automationexercise.com,"1. Record 10 นาที ตาม Charter: เมนู, Add to cart, ลิงก์เปิดแท็บใหม่
+2. เล่นซ้ำ + Run pytest",บันทึกข้อสังเกต/Bug ใน Session sheet,-,Manual,Manual,ยังไม่ทดสอบ,

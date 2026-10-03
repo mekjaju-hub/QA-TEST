@@ -9,6 +9,7 @@ from __future__ import annotations
 import io
 import json
 import re
+import threading
 
 from .storage import get_storage
 from .web_history import HBASE
@@ -22,6 +23,8 @@ CATEGORIES = {  # sig prefix → (category code, Thai label)
     "field": ("input", "กรอกข้อมูล"),
     "dropdown": ("dropdown", "Dropdown"),
     "page": ("page", "หน้าเว็บ"),
+    "record": ("record", "สถานการณ์ที่บันทึก"),
+    "record-neg": ("record", "สถานการณ์ที่บันทึก"),
 }
 CATEGORY_LABEL = {code: label for code, label in CATEGORIES.values()}
 URL_RX = re.compile(r"https?://\S+")
@@ -53,9 +56,18 @@ def _histories() -> list[dict]:
     return out
 
 
+_build_lock = threading.Lock()
+
+
 def build() -> list[dict]:
+    with _build_lock:          # one request at a time assigns new TL-IDs and writes the index
+        return _build()
+
+
+def _build() -> list[dict]:
     st = get_storage()
     index: dict[str, str] = json.loads(st.read_text(INDEX)) if st.exists(INDEX) else {}
+    known = len(index)
     next_no = max([int(v.split("-")[1]) for v in index.values()] + [0]) + 1
     rows: dict[str, dict] = {}
     for h in sorted(_histories(), key=lambda x: x.get("created_at", "")):
@@ -82,7 +94,8 @@ def build() -> list[dict]:
                 row["priority"] = t["priority"]
             row["sources"].append({"page_key": h["key"], "page": h["page"], "title": h.get("title", ""), "hid": t["hid"],
                                    "last_result": t.get("last_result"), "last_run_at": t.get("last_run_at")})
-    st.write_text(INDEX, json.dumps(index, ensure_ascii=False, indent=1))
+    if len(index) != known:    # only when new TL-IDs were given (reading the library must not rewrite files)
+        st.write_text(INDEX, json.dumps(index, ensure_ascii=False, indent=1))
     out = []
     for r in rows.values():
         ran = [s for s in r["sources"] if s["last_result"]]

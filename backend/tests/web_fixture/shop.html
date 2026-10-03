@@ -1,0 +1,16 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Practice Shop</title>
+<style>.fa-list:before{content:"\f03a"}.fa-lock:before{content:"\f023"}.fa-plus:before{content:"\f067"}.panel-title a{text-transform:uppercase}.collapse{display:none}.collapse.in{display:block}</style></head>
+<body><header><ul class="nav"><li><a href="/register.html?p=login"><i class="fa fa-lock"></i> Signup / Login</a></li>
+<li><a href="/register.html?p=api"><i class="fa fa-list"></i> API Testing</a></li></ul></header>
+<h1>Practice shop</h1>
+<div class="left-sidebar"><h2>Category</h2>
+<div class="panel-heading"><h4 class="panel-title"><a data-toggle="collapse" href="#Women"><span class="badge pull-right"><i class="fa fa-plus"></i></span>Women</a></h4></div>
+<div id="Women" class="collapse"><ul><li><a href="/register.html">Dress </a></li><li><a href="/register.html?c=tops">Tops </a></li></ul></div>
+<div class="panel-heading"><h4 class="panel-title"><a data-toggle="collapse" href="#Men"><span class="badge pull-right"><i class="fa fa-plus"></i></span>Men</a></h4></div>
+<div id="Men" class="collapse"><ul><li><a href="/register.html?c=jeans">Jeans </a></li></ul></div>
+</div>
+<script>
+// like Bootstrap's collapse: the category link only opens its sub-menu (no page change)
+document.querySelectorAll('a[data-toggle=collapse]').forEach(a => a.addEventListener('click', e => {
+  e.preventDefault(); document.querySelector(a.getAttribute('href')).classList.toggle('in'); }));
+</script></body></html>

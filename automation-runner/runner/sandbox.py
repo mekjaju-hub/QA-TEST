@@ -27,7 +27,7 @@ from typing import Callable
 from .results import parse_junit, summarize
 from .validate import validate_files, validate_nodeids
 
-TEST_ENV_ALLOW = {"TEST_ENV", "BASE_URL", "AUTH_TYPE", "API_TIMEOUT", "LOGIN_USER", "LOGIN_PASS", "HEADLESS"}
+TEST_ENV_ALLOW = {"TEST_ENV", "BASE_URL", "AUTH_TYPE", "API_TIMEOUT", "LOGIN_USER", "LOGIN_PASS", "HEADLESS", "RECORD_PASSWORD"}
 IS_POSIX = os.name == "posix"
 
 

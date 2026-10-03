@@ -1,0 +1,17 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Tricky Site</title></head>
+<body><h1>Tricky practice page</h1>
+<x-shop-button></x-shop-button>
+<button id="greedy" type="button">Greedy button</button>
+<a id="fast" href="/register.html">Fast link</a>
+<p id="out"></p>
+<script>
+// web component with its button inside Shadow DOM (like many modern sites)
+customElements.define('x-shop-button', class extends HTMLElement {
+  connectedCallback() { const r = this.attachShadow({ mode: 'open' }); r.innerHTML = '<button type="button">Shadow buy later</button>';
+    r.querySelector('button').onclick = () => { document.getElementById('out').textContent = 'shadow clicked'; }; }
+});
+// the page swallows clicks on this button at document level (stopPropagation in capture phase)
+document.addEventListener('click', e => { if (e.target.id === 'greedy') { e.stopPropagation(); document.getElementById('out').textContent = 'greedy clicked'; } }, true);
+// navigates on pointerdown, before 'click' can fire
+document.getElementById('fast').addEventListener('pointerdown', e => { e.preventDefault(); location.href = '/register.html'; });
+</script></body></html>

@@ -1,0 +1,22 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8"><title>Practice Register</title></head>
+<body><h1>สมัครสมาชิก (เว็บฝึก)</h1>
+<button type="button" id="open">ลงทะเบียน</button>
+<form id="reg" hidden>
+  <label for="fullname">ชื่อ-นามสกุล</label><input id="fullname" name="fullname">
+  <label for="email">อีเมล</label><input id="email" name="email" type="email">
+  <label for="pw">รหัสผ่าน</label><input id="pw" name="pw" type="password">
+  <label for="prov">จังหวัด</label><select id="prov" name="prov"><option value="">-- เลือก --</option><option value="bkk">กรุงเทพฯ</option><option value="cnx">เชียงใหม่</option></select>
+  <label><input type="checkbox" id="agree" name="agree"> ยอมรับเงื่อนไข</label>
+  <button type="submit">Submit</button>
+  <div id="msg" role="alert"></div>
+</form>
+<script>
+document.getElementById('open').onclick = function () { document.getElementById('reg').hidden = false; };
+document.getElementById('reg').addEventListener('submit', function (e) {
+  e.preventDefault();
+  var ok = ['fullname', 'email', 'pw'].every(function (id) { return document.getElementById(id).value; })
+    && document.getElementById('prov').value && document.getElementById('agree').checked;
+  if (!ok) { document.getElementById('msg').textContent = 'กรุณากรอกข้อมูลให้ครบ'; return; }
+  alert('ลงทะเบียนสำเร็จ: ' + document.getElementById('fullname').value);
+});
+</script></body></html>

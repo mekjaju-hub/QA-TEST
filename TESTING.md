@@ -1,5 +1,15 @@
 # TESTING
 
+## Website Test Suite (3 ต.ค. 2026) — ทดสอบหน้าเว็บ WebQA2026 แบบผู้ใช้จริง
+
+| ชุดทดสอบ | คำสั่ง | ผล |
+|---|---|---|
+| Website E2E + API (Playwright) — 10 Module / 101 Test Case | `cd frontend; npx playwright test -c playwright.website.config.ts` | **100 passed + 1 Known defect** (DEF-WQA-01) |
+| Load / Stress / Spike / Rate limit | `python perf\webqa_perf.py --mode load|stress|spike|ratelimit --password …` | 50 ผู้ใช้: 114 req/s · p95 1,027 ms · error 0% · Breaking point ≈ 100 ผู้ใช้ |
+| Backend `tests/test_web_explorer.py` | `cd backend; python -m pytest tests\test_web_explorer.py` | **24 passed** |
+
+Test Case ทั้งหมด 113 ข้อ (อัตโนมัติ 109 · Manual 4) + Defect 7 รายการ: `docs/qa/WEBQA2026_TEST_CASES.xlsx` · แผน/ผล: `docs/qa/WEBSITE_TEST_PLAN.md` · เมนู: `RUN-WEBSITE-TESTS.bat`
+
 ## สรุปผลล่าสุด (1 ต.ค. 2026)
 
 | ชุดทดสอบ | คำสั่ง | ผล |
@@ -38,6 +48,8 @@ automation-runner/tests/test_runner.py
 worker/tests/test_worker.py
 frontend/tests/components.test.tsx
 frontend/e2e/basic.spec.ts     (start-backend.mjs สร้าง DB/Storage ใหม่ที่ storage/e2e)
+frontend/e2e/website/          Website Test Suite: 01-auth … 10-api-security (+ support/, global-setup, practice-site)
+perf/webqa_perf.py             Load / Stress / Spike / Rate limit ของ API ที่หน้าเว็บเรียก
 ```
 
 ## Security tests (หัวข้อ 40)

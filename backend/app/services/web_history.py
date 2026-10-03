@@ -83,6 +83,7 @@ def record_exploration(h: dict, data: dict) -> dict:
             e.update({"first_seen": at, "first_exploration": data["id"], "designed": 0, "runs": 0, "passed": 0})
             new += 1
         e.update({k: t[k] for k in ("title", "type", "priority", "steps", "expected", "observed", "needs_login")})
+        e.update({k: t[k] for k in ("start_url", "independent", "func", "file") if k in t})
         e.update({"last_seen": at, "last_exploration": data["id"]})
         e["designed"] = e.get("designed", 0) + 1
     lg = data.get("login") or {}

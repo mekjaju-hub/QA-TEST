@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { AppShell, PageHead } from "@/components/shell";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,7 @@ import { api, download } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/lib/toast";
 import { fmtDate } from "@/lib/utils";
+import { caseHref } from "@/lib/web-history";
 
 type PageSummary = { key: string; page: string; url: string; title: string; updated_at: string; explorations: number; test_cases: number; passed_last: number; failed_last: number };
 type HistTC = {
@@ -20,10 +22,11 @@ type HistTC = {
 type HistExpl = { id: string; at: string; by: string; status: number | null; tc: number; new_tc: number; login: string; last_run?: Record<string, number>; deleted?: boolean };
 type History = { key: string; page: string; url: string; title: string; created_at: string; updated_at: string; explorations: HistExpl[]; test_cases: HistTC[] };
 
-const KIND: Record<string, string> = { page: "หน้าเว็บ", login: "Login", home: "หลัง Login", field: "ช่องกรอก", dropdown: "Dropdown", click: "การกด (Click Explore)" };
+const KIND: Record<string, string> = { page: "หน้าเว็บ", login: "Login", home: "หลัง Login", field: "ช่องกรอก", dropdown: "Dropdown", click: "การกด (Click Explore)", record: "บันทึกการใช้งาน (Record)", "record-neg": "Negative จากการบันทึก" };
 
 export default function WebHistoryPage() {
   const { can } = useAuth();
+  const router = useRouter();
   const { toastError } = useToast();
   const [key, setKey] = useState<string | null>(null);
   const [view, setView] = useState("library");
@@ -89,12 +92,14 @@ export default function WebHistoryPage() {
             </select>
             <span className="small muted">{rows.length} รายการ</span>
           </div>
+          <p className="small muted" style={{ margin: "0 0 6px" }}>คลิกที่แถว (หรือ ID / ชื่อ) เพื่อเปิดรายละเอียดการเขียน Test Case: เงื่อนไขก่อนเริ่ม ขั้นตอน ผลที่คาดหวัง Script และโค้ด</p>
           <div className="tblwrap"><table><thead><tr>
-            <th>ID</th><th>Test Case</th><th>กลุ่ม / ประเภท</th><th>ขั้นตอน</th><th>ผลที่คาดหวัง</th><th>ออกแบบครั้งแรก</th><th>ถูกออกแบบ</th><th>ผลรันล่าสุด</th></tr></thead><tbody>
+            <th>ID</th><th>Test Case</th><th>กลุ่ม / ประเภท</th><th>ขั้นตอน</th><th>ผลที่คาดหวัง</th><th>ออกแบบครั้งแรก</th><th>ถูกออกแบบ</th><th>ผลรันล่าสุด</th><th></th></tr></thead><tbody>
             {rows.map(t => (
-              <tr key={t.sig}>
-                <td className="mono small">{t.hid}</td>
-                <td><b>{t.title}</b>{t.needs_login && <><br /><span className="badge b-orange">ต้อง Login</span></>}</td>
+              <tr key={t.sig} className="row-link" style={{ cursor: "pointer" }} title="เปิดรายละเอียด Test Case"
+                onClick={e => { if (!(e.target as HTMLElement).closest("a,button,summary,details")) router.push(caseHref(h.key, t.hid)); }}>
+                <td className="mono small"><Link href={caseHref(h.key, t.hid)}>{t.hid}</Link></td>
+                <td><Link href={caseHref(h.key, t.hid)} style={{ color: "inherit" }}><b>{t.title}</b></Link>{t.needs_login && <><br /><span className="badge b-orange">ต้อง Login</span></>}</td>
                 <td className="small">{KIND[t.sig.split(/[.:]/)[0]] ?? "-"}<br /><span className="muted">{t.type} · {t.priority}</span></td>
                 <td className="small"><ol style={{ margin: 0, paddingLeft: 16 }}>{t.steps.map((s, i) => <li key={i}>{s}</li>)}</ol></td>
                 <td className="small">{t.expected}</td>
@@ -102,6 +107,7 @@ export default function WebHistoryPage() {
                 <td className="small">{t.designed} ครั้ง</td>
                 <td className="small">{t.last_result ? <><Badge status={t.last_result} /><br /><span className="muted">รัน {t.runs} · ผ่าน {t.passed}</span>
                   {t.last_result === "FAILED" && t.last_message && <details><summary>เหตุผล</summary><span style={{ whiteSpace: "pre-wrap" }}>{t.last_message}</span></details>}</> : <span className="muted">-</span>}</td>
+                <td className="small"><Link className="btn sm" href={caseHref(h.key, t.hid)}>รายละเอียด →</Link></td>
               </tr>))}
           </tbody></table></div>
 
@@ -207,7 +213,7 @@ function Library({ onOpenPage }: { onOpenPage: (key: string) => void }) {
               <td className="small"><ol style={{ margin: 0, paddingLeft: 16 }}>{t.steps.map((s, i) => <li key={i}>{s}</li>)}</ol></td>
               <td className="small">{t.expected}</td>
               <td className="small">{t.sources.map(s => (
-                <div key={s.page_key + s.hid}><a href="#" onClick={e => { e.preventDefault(); onOpenPage(s.page_key); }}>{s.page}</a> <span className="mono muted">{s.hid}</span>
+                <div key={s.page_key + s.hid}><a href="#" onClick={e => { e.preventDefault(); onOpenPage(s.page_key); }}>{s.page}</a> <Link className="mono" href={caseHref(s.page_key, s.hid)} title="รายละเอียด Test Case">{s.hid}</Link>
                   {s.last_result && <> <Badge status={s.last_result} /></>}</div>))}
                 {t.sites > 1 && <span className="badge b-blue">{t.sites} เว็บไซต์</span>}</td>
               <td>{t.last_result ? <Badge status={t.last_result} /> : <span className="muted small">-</span>}</td>

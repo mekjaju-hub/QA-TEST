@@ -19,8 +19,23 @@ def q(s: str) -> str:
     return json.dumps(s, ensure_ascii=False)
 
 
-def loc_code(spec: dict, page: str = "page") -> str:
+NAME_HELPER = [
+    "def NAME(text: str):",
+    '    """ชื่อปุ่ม/ลิงก์ตามที่ตาเห็น: ทั้งข้อความ ไม่สนตัวพิมพ์เล็ก-ใหญ่ (CSS แปลงเป็นตัวใหญ่ได้) และไม่สนไอคอนฟอนต์หน้า/หลังชื่อ"""',
+    '    return re.compile(r"^[\\s\\ue000-\\uf8ff]*" + re.escape(text) + r"[\\s\\ue000-\\uf8ff]*$", re.IGNORECASE)',
+]
+
+
+def shouty(v: str) -> bool:
+    """ALL-CAPS names often come from CSS text-transform (shown "WOMEN", real name "Women") in recordings made before
+    the recorder read the real DOM text → match those case-insensitively."""
+    return any(c.isalpha() for c in v) and v == v.upper() and v != v.lower()
+
+
+def loc_code(spec: dict, page: str = "page", *, any_case: bool = False) -> str:
     by, v = spec["by"], q(spec["value"])
+    if any_case and by == "role":   # recorded tests: NAME() = whole name, any case, icons ignored (see the generated file)
+        return f"{page}.get_by_role({q(spec['role'])}, name=NAME({v}))"
     if by == "label":
         return f"{page}.get_by_label({v}, exact=True)"
     if by == "placeholder":
@@ -506,3 +521,252 @@ def _click_assertion(x: dict):
 def _doc(text: str) -> str:
     """Safe text inside a triple-quoted docstring (labels may contain quotes or backslashes)."""
     return text.replace("\\", "/").replace('"', "'")
+
+
+# ------------------------------------------------------------------ Recorded scenario → Test Case + pytest
+LOC_MEANING = {"role": "หาจากชนิด (role) + ชื่อที่มองเห็นบนหน้าจอ — วิธีที่แนะนำ ทนต่อการเปลี่ยนหน้าตา",
+               "label": "หาช่องกรอกจากป้ายชื่อ (label) ที่อยู่คู่กับช่อง",
+               "placeholder": "หาช่องกรอกจากข้อความจางๆ (placeholder) ในช่อง",
+               "css": "หาจาก id / name / CSS selector ในโค้ดหน้าเว็บ (ใช้เมื่อไม่มีชื่อที่มองเห็น)"}
+
+
+def step_command(s: dict) -> str:
+    """The exact Playwright line for one recorded step (same as in the generated test)."""
+    a = s["action"]
+    if a in ("click", "fill", "select", "check", "press"):
+        loc = loc_code(s["el"]["locator"], any_case=True)
+    if a == "click":
+        return f"{loc}.click()"
+    if a == "fill":
+        if s.get("secret"):
+            return f"{loc}.fill(PASSWORD)"
+        if s.get("masked"):
+            return f"{loc}.fill(os.getenv(\"RECORD_FIELD_{s['no']}\", \"\"))"
+        return f"{loc}.fill({q(s.get('value') or '')})"
+    if a == "select":
+        return f"{loc}.select_option({q(s.get('value') or '')})"
+    if a == "check":
+        return f"{loc}.{'check' if s.get('checked') else 'uncheck'}()"
+    if a == "press":
+        return f"{loc}.press(\"Enter\")"
+    if a == "assert_text":
+        if s.get("mode") == "hidden":
+            return f"expect(page.get_by_text({q(s['check'])})).to_have_count(0)"
+        return f"expect(page.get_by_text({q(s['check'])}).first).to_be_visible()"
+    if a == "goto":
+        return f"page.goto({q(s['url'])})"
+    if a == "dialog":
+        return f"assert {q(s['message'])} in dialogs"
+    if a == "popup":
+        return f"expect(page.get_by_text(re.compile({q(re.escape(_snippet(s['text'])))})).first).to_be_visible()"
+    return ""
+
+
+def _snippet(text: str) -> str:
+    return " ".join(text.split(" ")[0:8])[:60]
+
+
+def script_rows(steps: list[dict]) -> list[dict]:
+    """Ordered, explained script: what happens, where the element is, which command, what the command means."""
+    rows = []
+    for s in steps:
+        a = s["action"]
+        el = s.get("el") or {}
+        pos = el.get("pos") or {}
+        where = ""
+        if pos:
+            where = f"{pos.get('area', '')}{' · ' + pos['context'] if pos.get('context') else ''} (x={pos.get('x')}, y={pos.get('y')}, ขนาด {pos.get('w')}×{pos.get('h')} px)"
+        loc = el.get("locator") or {}
+        meaning = {
+            "click": "คลิก element นี้ 1 ครั้ง (Playwright จะรอให้มองเห็นและกดได้ก่อนเอง)",
+            "fill": "ล้างช่องแล้วพิมพ์ค่าใหม่ทั้งหมด",
+            "select": "เลือกตัวเลือกใน Dropdown ตาม value",
+            "check": "ติ๊ก/เอาติ๊กออก ที่ Checkbox หรือ Radio",
+            "press": "กดปุ่ม Enter บนคีย์บอร์ดที่ช่องนี้",
+            "assert_text": "ตรวจผล: รอสูงสุด 5 วินาทีให้ข้อความนี้แสดง (หรือไม่แสดง) บนหน้า",
+            "dialog": "ตรวจผล: popup ของ browser (alert/confirm) ต้องมีข้อความนี้",
+            "popup": "ตรวจผล: popup/ข้อความแจ้งเตือนในหน้าเว็บต้องแสดงข้อความนี้",
+            "goto": ("เปิด URL นี้ใหม่ — Test Case นี้เริ่มรอบใหม่ ไม่ต้องทำขั้นตอนของ Test Case ก่อนหน้า" if s.get("fresh")
+                     else "ไปที่ URL นี้โดยตรง (ตอนบันทึกผู้ใช้พิมพ์ URL หรือกดย้อนกลับ)"),
+        }.get(a, "")
+        if loc and a in ("click", "fill", "select", "check", "press"):
+            meaning += " · วิธีหา: " + LOC_MEANING.get(loc.get("by"), "")
+        rows.append({"no": s["no"], "seg": s.get("seg", 0), "seg_name": s.get("seg_name", ""), "event": s["text"],
+                     "where": where or ("-" if a in ("dialog", "popup", "assert_text", "goto") else ""), "command": step_command(s),
+                     "meaning": meaning})
+    return rows
+
+
+def segments_of(steps: list[dict]) -> list[list[dict]]:
+    segs: dict[int, list[dict]] = {}
+    for s in steps:
+        segs.setdefault(s.get("seg", 0), []).append(s)
+    return [segs[k] for k in sorted(segs)]
+
+
+def build_record(start_url: str, title: str, steps: list[dict], *, history_sigs: set[str] | None = None,
+                 hid_map: dict[str, str] | None = None) -> dict:
+    """One test case per recorded segment ("Add Test Case" splits the recording). Test N replays the actions of
+    test cases 1..N-1 first (as preconditions), then its own steps with checks. + a negative 'submit without data'."""
+    import hashlib
+    history_sigs = history_sigs or set()
+    hid_map = hid_map or {}
+    saved_pw = next((s.get("value") for s in steps if s["action"] == "fill" and s.get("secret") and s.get("value")), None)
+    pw_line = (f"PASSWORD = os.getenv(\"RECORD_PASSWORD\") or {q(saved_pw)}  # รหัสผ่านที่บันทึกไว้ (เปลี่ยนได้ด้วย RECORD_PASSWORD)" if saved_pw else
+               "PASSWORD = os.getenv(\"RECORD_PASSWORD\") or os.getenv(\"LOGIN_PASS\") or \"Test-Pass-123!\"  # รหัสผ่านไม่ถูกบันทึก — ใส่ตอนกด Run หรือตั้ง RECORD_PASSWORD")
+    tcs: list[dict] = []
+    lines = ["import os", "import re", "", "import pytest", "from playwright.sync_api import Page, expect", "",
+             f"START_URL = {q(start_url)}  # หน้าที่เริ่มบันทึก", pw_line, "", "", *NAME_HELPER, "", "",
+             "def catch_dialogs(page: Page) -> list:", '    """เก็บข้อความจาก popup alert/confirm — alert กด OK, confirm กด Cancel (เหมือนตอนบันทึก)"""',
+             "    messages = []", "    page.on(\"dialog\", lambda d: (messages.append(d.message), d.accept() if d.type == \"alert\" else d.dismiss()))",
+             "    return messages", "", "",
+             "def wait_for_dialog(page: Page, messages: list, count: int, timeout_ms: int = 5000):",
+             "    for _ in range(timeout_ms // 100):", "        if len(messages) >= count:", "            return", "        page.wait_for_timeout(100)",
+             "    raise AssertionError(f\"ไม่พบ popup ครั้งที่ {count} (พบ {len(messages)})\")", "", ""]
+
+    def code_for(s: dict, dn: list, with_checks: bool = True) -> list[str]:
+        a = s["action"]
+        if a in ("dialog", "popup", "assert_text") and not with_checks:
+            return ["page.wait_for_timeout(500)"] if a == "dialog" else []
+        if a == "click":
+            out = [step_command(s)]
+            if with_checks and s.get("url_after"):
+                u = urlparse(s["url_after"])
+                target = (u.path or "/") + (("?" + u.query) if u.query else "")
+                out.append(f"expect(page).to_have_url(re.compile({q(re.escape(target))}))")
+            elif s.get("url_after"):
+                out.append("page.wait_for_load_state()")
+            return out
+        if a == "dialog":
+            dn[0] += 1
+            return [f"wait_for_dialog(page, dialogs, {dn[0]})", f"assert dialogs[{dn[0] - 1}] == {q(s['message'])}"]
+        return [step_command(s)]
+
+    segs = segments_of(steps)
+    done_before: list[dict] = []
+    chain: dict[int, list[dict]] = {}   # test case no. → steps of the earlier test cases it depends on
+    chain_url: dict[int, str] = {}      # test case no. → page its test opens first
+    cur_url = start_url
+    for n, seg in enumerate(segs, 1):
+        if seg[0].get("seg_start"):      # a new cycle: opens its own start page, independent of the earlier test cases
+            done_before = []
+            cur_url = seg[0]["seg_start"]
+        chain[n], chain_url[n] = list(done_before), cur_url
+        open_url = cur_url
+        acts = [s for s in seg if s["action"] in ("click", "fill", "select", "check", "press", "goto") and not s.get("fresh")]
+        checks = [s for s in seg if s["action"] in ("dialog", "popup", "assert_text")]
+        first_click = next((s for s in seg if s["action"] == "click"), None)
+        name = seg[0].get("seg_name") or (el_label(first_click["el"]) if first_click else (title or "หน้าเว็บ"))
+        digest = hashlib.sha1("|".join(s["text"] for s in done_before + seg).encode()).hexdigest()[:10]
+        summary = f"สถานการณ์: {name} ({len(acts)} ขั้นตอน)" + (f" → {checks[-1]['text'][:50]}" if checks else "")
+        expected = "; ".join(s["text"] for s in checks) or ("ทำครบทุกขั้นตอนได้โดยไม่มี error" + (
+            f" และไปที่หน้า {urlparse(next(s['url_after'] for s in reversed(seg) if s.get('url_after'))).path}" if any(s.get("url_after") for s in seg) else ""))
+        pre = [f"(ทำ Test Case ก่อนหน้า {len(done_before)} ขั้นตอนให้ครบก่อน)"] if done_before else []
+        sig = f"record:{digest}"
+        id_ = f"TC-REC-{n:02d}"
+        func = f"test_tc_rec_{n:02d}_{_slug(name) if _slug(name) != 'site' else 'scenario'}"
+        tcs.append({"id": id_, "sig": sig, "hid": hid_map.get(sig), "is_new": sig not in history_sigs, "title": summary,
+                    "type": "Scenario (Recorded)", "priority": "High", "steps": [f"เปิด {open_url}", *pre] + [s["text"] for s in seg if s["action"] not in ("dialog", "popup") and not s.get("fresh")],
+                    "start_url": open_url, "independent": not done_before,
+                    "expected": expected, "observed": "บันทึกจากการใช้งานจริง", "func": func, "file": "tests/test_06_recorded.py", "needs_login": False})
+        hid = hid_map.get(sig)
+        lines += ["@pytest.mark.recorded", f"def {func}(page: Page):", f'    """{id_}{f" [{hid}]" if hid else ""}: ' + _doc(summary) + '"""',
+                  "    dialogs = catch_dialogs(page)", "    page.goto(START_URL)" if open_url == start_url else f"    page.goto({q(open_url)})  # หน้าเริ่มของรอบนี้ (ไม่ต่อจากรอบก่อน)"]
+        dn = [0]
+        if done_before:
+            lines.append(f"    # --- เตรียม: ทำขั้นตอนของ Test Case ก่อนหน้าให้ครบ ({len(done_before)} ขั้น) ---")
+            for s in done_before:
+                if s.get("fresh"):
+                    continue
+                if s["action"] == "dialog":
+                    dn[0] += 1
+                lines += ["    " + c for c in code_for(s, [0], with_checks=False)]
+            lines.append(f"    # --- ขั้นตอนของ {id_} ---")
+        for s in seg:
+            if s.get("fresh"):
+                continue
+            lines.append(f"    # {s['no']}. " + s["text"].replace("\n", " "))
+            lines += ["    " + c for c in code_for(s, dn)]
+        lines += ["", ""]
+        done_before += seg
+
+    # negative variant for the first test case that fills a form and gets a result
+    for n, seg in enumerate(segs, 1):
+        fills = [s for s in seg if s["action"] in ("fill", "select", "check")]
+        outcome = [s for s in seg if s["action"] in ("dialog", "popup")]
+        if not (fills and outcome):
+            continue
+        trig = [s for s in seg if s["action"] in ("click", "press") and seg.index(s) < seg.index(outcome[0]) and seg.index(s) > seg.index(fills[0])]
+        if not trig:
+            continue
+        trigger = dict(trig[-1])
+        trigger.pop("url_after", None)
+        prior = chain.get(n, [])
+        neg_start = chain_url.get(n, start_url)
+        before_fill = [s for s in seg if s["action"] == "click" and seg.index(s) < seg.index(fills[0])]
+        name = seg[0].get("seg_name") or (el_label(before_fill[0]["el"]) if before_fill else (title or "หน้าเว็บ"))
+        digest = hashlib.sha1(("neg|" + "|".join(s["text"] for s in prior + seg)).encode()).hexdigest()[:10]
+        nsig = f"record-neg:{digest}"
+        ok_text = outcome[0].get("message") or outcome[0].get("text")
+        id_ = f"TC-REC-{len(segs) + 1:02d}"
+        tcs.append({"id": id_, "sig": nsig, "hid": hid_map.get(nsig), "is_new": nsig not in history_sigs,
+                    "title": f"ส่งรายการโดยไม่กรอกข้อมูล ({name})", "type": "Negative (from recording)", "priority": "High",
+                    "steps": [f"เปิด {neg_start}", *([f"(ทำ Test Case ก่อนหน้า {len(prior)} ขั้นตอนให้ครบก่อน)"] if prior else []),
+                              *[s["text"] for s in before_fill if not s.get("fresh")], "ไม่กรอกข้อมูลใดๆ", trigger["text"]],
+                    "expected": f"ต้องไม่แสดงผลสำเร็จเหมือนตอนกรอกครบ (\"{ok_text[:60]}\") — ควรแจ้งให้กรอกข้อมูล", "observed": "สร้างจากการบันทึก",
+                    "func": "test_tc_rec_negative_submit_without_data", "file": "tests/test_06_recorded.py", "needs_login": False})
+        nh = hid_map.get(nsig)
+        lines += ["@pytest.mark.recorded", "@pytest.mark.negative", "def test_tc_rec_negative_submit_without_data(page: Page):",
+                  f'    """{id_}{f" [{nh}]" if nh else ""}: ' + _doc(f"ส่งรายการโดยไม่กรอกข้อมูล ({name})") + '"""',
+                  "    dialogs = catch_dialogs(page)", "    page.goto(START_URL)" if neg_start == start_url else f"    page.goto({q(neg_start)})"]
+        for s in [x for x in prior + before_fill if not x.get("fresh")]:
+            lines += ["    " + c for c in code_for(s, [0], with_checks=False)]
+        lines += ["    " + step_command(trigger), "    page.wait_for_timeout(1500)"]
+        if outcome[0]["action"] == "dialog":
+            lines += [f"    assert {q(outcome[0]['message'])} not in dialogs, \"แสดงข้อความสำเร็จทั้งที่ไม่ได้กรอกข้อมูล\""]
+        else:
+            lines += [f"    expect(page.get_by_text(re.compile({q(re.escape(_snippet(outcome[0]['text'])))}))).to_have_count(0)"]
+        lines += ["", ""]
+        break
+
+    files = {"tests/__init__.py": "", "tests/test_06_recorded.py": "\n".join(lines).rstrip() + "\n",
+             "conftest.py": ('"""ไฟล์ตั้งค่าร่วมของ pytest — Test ที่บันทึกใช้ fixture `page` ของ pytest-playwright"""\n'
+                             "import re\n\nimport pytest\n\n"
+                             "AD_HOSTS = re.compile(r\"^https?://([^/]*\\.)?(googlesyndication\\.com|doubleclick\\.net|googleadservices\\.com|"
+                             "adservice\\.google\\.[a-z.]+|fundingchoicesmessages\\.google\\.com|google-analytics\\.com|googletagmanager\\.com|"
+                             "amazon-adsystem\\.com|adnxs\\.com)/\")\n\n\n"
+                             "@pytest.fixture(autouse=True)\n"
+                             "def block_ads(page):\n"
+                             "    \"\"\"ปิดโฆษณา/ตัวติดตาม — popup โฆษณาเต็มจอ (เช่น #google_vignette) บังปุ่มทำให้ Test พังแบบสุ่ม\"\"\"\n"
+                             "    page.context.route(AD_HOSTS, lambda route: route.abort())\n"
+                             "    yield\n\n\n"
+                             "@pytest.fixture(autouse=True)\n"
+                             "def no_os_login_prompts(page, browser_name):\n"
+                             "    \"\"\"เว็บที่ขอ passkey (WebAuthn) ทำให้ Windows ถาม 'Sign in with Microsoft account/passkey' — ใช้ตัวยืนยันจำลองแทน\"\"\"\n"
+                             "    if browser_name == \"chromium\":\n"
+                             "        try:\n"
+                             "            cdp = page.context.new_cdp_session(page)\n"
+                             "            cdp.send(\"WebAuthn.enable\", {\"enableUI\": False})\n"
+                             "            cdp.send(\"WebAuthn.addVirtualAuthenticator\", {\"options\": {\"protocol\": \"ctap2\", \"transport\": \"internal\",\n"
+                             "                     \"hasResidentKey\": True, \"hasUserVerification\": True, \"isUserVerified\": True}})\n"
+                             "        except Exception:  # noqa: BLE001\n"
+                             "            pass\n"
+                             "    yield\n"),
+             "pytest.ini": ("[pytest]\ntestpaths = tests\nmarkers =\n    recorded: สร้างจากการบันทึกการใช้งาน\n    negative: กรณีผิดปกติ\n"
+                            "addopts = --screenshot only-on-failure --output test-results\n"
+                            "disable_test_id_escaping_and_forfeit_all_rights_to_community_support = True\n"),
+             "requirements.txt": PIN_REQUIREMENTS, ".env.example": "RECORD_PASSWORD=\n"}
+    files["TEST_CASES.md"] = _tc_markdown(start_url, tcs)
+    sc = script_rows(steps)
+    files["SCRIPT_TH.md"] = "# Script ทีละขั้นตอน\n\n" + "\n".join(
+        f"{r['no']}. **{r['event']}**\n   - อยู่ตรงไหน: {r['where'] or '-'}\n   - คำสั่ง: `{r['command']}`\n   - ความหมาย: {r['meaning']}\n" for r in sc)
+    files["README_TH.md"] = (f"# Test ที่สร้างจากการบันทึกการใช้งาน — {start_url}\n\n"
+                             "```powershell\npip install -r requirements.txt\npython -m playwright install chromium\n"
+                             "pytest --headed --slowmo 500   # ดู browser ทำซ้ำตามที่บันทึกไว้\n```\n\n"
+                             "ดูคำอธิบายทีละขั้นใน SCRIPT_TH.md · ถ้าขั้นตอนมีรหัสผ่านที่ไม่ได้บันทึก ให้ตั้ง `RECORD_PASSWORD` ใน `.env` ก่อนรัน\n\n"
+                             "**ระวัง:** Test นี้ทำรายการจริงตามที่บันทึก (เช่น กด Submit) — รันกับระบบทดสอบเท่านั้น\n")
+    return {"test_cases": tcs, "files": files, "slug": _slug(urlparse(start_url).netloc), "script": sc}
+
+
+def el_label(el: dict) -> str:
+    return el.get("label") or el.get("text") or el.get("placeholder") or el.get("name") or el.get("id") or el.get("tag", "")

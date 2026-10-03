@@ -108,6 +108,15 @@ def candidates_link(l: dict) -> list[dict]:
     return [{"by": "role", "role": "link", "value": l["text"]}] if l.get("text") else []
 
 
+ICON_GAP = r"[\s\ue000-\uf8ff]*"   # spaces / icon-font glyphs (Font Awesome ::before) around a button or link name
+
+
+def role_name(text: str):
+    """The visible name of a button/link, matched the way a person reads it: whole text, any upper/lower case
+    (CSS text-transform shows "WOMEN" for "Women") and ignoring icon-font glyphs ("\uf03a API Testing")."""
+    return re.compile("^" + ICON_GAP + re.escape(text) + ICON_GAP + "$", re.IGNORECASE)
+
+
 def to_locator(page, spec: dict):
     by = spec["by"]
     if by == "label":
@@ -115,7 +124,7 @@ def to_locator(page, spec: dict):
     if by == "placeholder":
         return page.get_by_placeholder(spec["value"], exact=True)
     if by == "role":
-        return page.get_by_role(spec["role"], name=spec["value"], exact=True)
+        return page.get_by_role(spec["role"], name=role_name(spec["value"]))
     return page.locator(spec["value"])
 
 
