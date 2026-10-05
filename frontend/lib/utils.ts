@@ -12,7 +12,7 @@ export function fmtDate(s?: string | null): string {
 
 // Color convention (หัวข้อ 36): blue info, green approved/passed, orange review/assumption, red conflict/failed, purple AI, gray draft
 export const STATUS_COLOR: Record<string, string> = {
-  DRAFT: "gray", AI_GENERATED: "purple", WAITING_FOR_REVIEW: "orange", NEEDS_CLARIFICATION: "orange", CONFLICT: "red",
+  DRAFT: "gray", AI_GENERATED: "purple", CONFIRMED: "green", ACTIVE: "green", SUSPENDED: "orange", WAITING_FOR_REVIEW: "orange", NEEDS_CLARIFICATION: "orange", CONFLICT: "red",
   REVISED: "blue", APPROVED: "green", READY_FOR_AUTOMATION: "green", AUTOMATED: "green", DEPRECATED: "gray",
   NEEDS_CONFIGURATION: "orange", NEEDS_VISUAL_REVIEW: "orange", PASSED: "green", FAILED: "red", BLOCKED: "orange", RUNNING: "blue",
   QUEUED: "gray", CANCELLED: "gray", DONE: "green", PENDING: "gray", OPEN: "orange", RESOLVED: "green", REJECTED: "red",

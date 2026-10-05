@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell, PageHead } from "@/components/shell";
 import { AuthImage } from "@/components/auth-image";
 import { Highlight, Reasons } from "@/components/req-bits";
+import { DocCoverage, docLabel, inDoc, useDocs } from "@/components/doc-coverage";
 import { AssumptionLabel, Badge, NFValue } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -34,6 +35,9 @@ function Inner() {
   const { confirm, prompt } = useConfirm();
   const [f, setF] = useState({ q: "", type: "", status: sp.get("status") ?? "", max_score: "", conflict: false, needs_clarification: false, show_old: false });
   const [sel, setSel] = useState<string | null>(sp.get("sel"));
+  const [docId, setDocId] = useState<string>(sp.get("doc") ?? "");
+  const docs = useDocs(pid);
+  const doc = docs.data?.find(d => d.id === docId);
   const [cmpSel, setCmpSel] = useState<string[]>([]);
   const [cmp, setCmp] = useState<{ a: Requirement; b: Requirement; similarity: number; diffs: Diff[] } | null>(null);
   const [edit, setEdit] = useState<Record<string, string> | null>(null);
@@ -43,9 +47,9 @@ function Inner() {
     queryKey: ["requirements", pid, f], queryFn: () => api.get<{ items: RequirementBrief[]; types: string[] }>(
       `/api/projects/${pid}/requirements${qs({ q: f.q, type: f.type, status: f.status, max_score: f.max_score || undefined, conflict: f.conflict, needs_clarification: f.needs_clarification, show_old: f.show_old })}`),
   });
-  const items = useMemo(() => list.data?.items ?? [], [list.data]);
+  const items = useMemo(() => (list.data?.items ?? []).filter(x => inDoc(x, docId)), [list.data, docId]);
   const current = sel ?? items[0]?.id ?? null;
-  useEffect(() => { if (!sel && items[0]) setSel(items[0].id); }, [items, sel]);
+  useEffect(() => { if (items.length && (!sel || !items.some(x => x.id === sel))) setSel(items[0].id); }, [items, sel]);
   const det = useQuery({ queryKey: ["requirement", current], enabled: !!current, queryFn: () => api.get<Requirement>(`/api/requirements/${current}`) });
   const crumbs = projectCrumbs(pid, p.data?.code, ["Requirements"]);
   const refresh = async () => { await qc.invalidateQueries({ queryKey: ["requirements", pid] }); await qc.invalidateQueries({ queryKey: ["requirement", current] }); await qc.invalidateQueries({ queryKey: ["dashboard", pid] }); };
@@ -79,6 +83,8 @@ function Inner() {
     <AppShell crumbs={crumbs}>
       <PageHead title="Requirement Explorer" sub={`${p.data?.code ?? ""} · Source ซ้าย · Requirement กลาง · AI Analysis ขวา`} />
       <div className="toolbar">
+        <select aria-label="เลือกเอกสาร" data-testid="doc-filter" value={docId} onChange={e => setDocId(e.target.value)}>
+          <option value="">ทุกเอกสารใน Project</option>{docs.data?.map(d => <option key={d.id} value={d.id}>{docLabel(d)}</option>)}</select>
         <input type="text" placeholder="ค้นหา ID / ข้อความ" aria-label="ค้นหา" value={f.q} onChange={e => setF({ ...f, q: e.target.value })} />
         <select aria-label="Type" value={f.type} onChange={e => setF({ ...f, type: e.target.value })}><option value="">ทุก Type</option>{list.data?.types.map(t => <option key={t}>{t}</option>)}</select>
         <select aria-label="Status" value={f.status} onChange={e => setF({ ...f, status: e.target.value })}><option value="">ทุก Status</option>{STATUSES.map(t => <option key={t}>{t}</option>)}</select>
@@ -90,6 +96,7 @@ function Inner() {
         <Button onClick={doCompare} disabled={cmpSel.length !== 2}>Compare 2 รายการ</Button>
         {can("scenario.edit") && <Button variant="primary" onClick={genScenarios}>สร้าง Scenario จาก Requirement ที่ Approved</Button>}
       </div>
+      {docId && <DocCoverage pid={pid} docId={docId} doc={doc} />}
       {list.isLoading ? <Loading /> : list.error ? <ErrorState error={list.error} onRetry={() => list.refetch()} /> : !items.length ?
         <Empty title="ไม่พบ Requirement" body="อัปโหลดและวิเคราะห์ BRS ก่อน หรือล้าง Filter" action={can("doc.upload") && <Link className="btn pri" href={`/projects/${pid}/documents/upload`}>อัปโหลด BRS</Link>} /> : <>
         <div className="tblwrap list" style={{ maxHeight: 300, marginBottom: 14 }}><table>

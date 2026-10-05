@@ -9,6 +9,7 @@ import type { Project } from "@/lib/types";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Loading } from "./ui/states";
+import { FF_MENU } from "./fundflow/menu";
 
 type DashKpi = { kpi: Record<string, number>; last_run: { summary: Record<string, number> } | null };
 
@@ -35,6 +36,9 @@ export function AppShell({ crumbs, children }: { crumbs: [string, string?][]; ch
   const params = useParams<{ pid?: string }>();
   const pid = params?.pid;
   const [open, setOpen] = useState(false);
+  const inFF = pathname.startsWith("/fundflow");
+  const [ffOpen, setFfOpen] = useState(inFF);
+  useEffect(() => { if (inFF) setFfOpen(true); }, [inFF]);
   const projects = useProjects();
   const dash = useQuery({ queryKey: ["dashboard", pid], queryFn: () => api.get<DashKpi>(`/api/projects/${pid}/dashboard`), enabled: !!pid && !!user, refetchInterval: 15000 });
 
@@ -68,9 +72,18 @@ export function AppShell({ crumbs, children }: { crumbs: [string, string?][]; ch
               </div>
             );
           })}
-          {can("auto.generate") && <><div className="grp">ฝึก Automation</div>
+          <div className="grp">ฝึก Automation</div>
+          <Link href="/qa-path" className={pathname.startsWith("/qa-path") ? "on" : ""} onClick={() => setOpen(false)} data-testid="nav-qa-path">Become to QA Engineer</Link>
+          {can("auto.generate") && <>
             <Link href="/web-explorer" className={pathname === "/web-explorer" ? "on" : ""}>Web Explorer</Link>
             <Link href="/web-explorer/history" className={pathname === "/web-explorer/history" ? "on" : ""}>Web History</Link></>}
+          <button type="button" className={`parent ${inFF ? "on" : ""}`} aria-expanded={ffOpen} aria-controls="ff-sub" data-testid="nav-fundflow" onClick={() => setFfOpen(o => !o)}>
+            <span>FundFlow</span><span className="chev" aria-hidden>{ffOpen ? "▾" : "▸"}</span></button>
+          {ffOpen && <div id="ff-sub" className="sub">
+            <Link href="/fundflow" className={pathname === "/fundflow" ? "on" : ""} onClick={() => setOpen(false)}>ภาพรวม FundFlow</Link>
+            {FF_MENU.map(g => <div key={g.group}><div className="grp">{g.group}</div>
+              {g.items.map(i => <Link key={i.href} href={i.href} className={pathname.startsWith(i.href) ? "on" : ""} onClick={() => setOpen(false)}>{i.label}</Link>)}</div>)}
+          </div>}
           {(can("settings") || can("audit.view")) && <div className="grp">ระบบ (Admin)</div>}
           {can("settings") && <Link href="/settings" className={pathname === "/settings" ? "on" : ""}>Settings</Link>}
           {can("audit.view") && <Link href="/audit-log" className={pathname === "/audit-log" ? "on" : ""}>Audit Log</Link>}

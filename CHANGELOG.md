@@ -156,3 +156,11 @@
 
 ## [0.9.0] — 2026-09-30 — ต้นแบบ HTML ไฟล์เดียว
 - `03_web_app/brs-qa-platform.html` (ดู `01_conversation/CONVERSATION_HISTORY.md`)
+
+## 2026-10-05 — เมนู FundFlow (รวมจาก fundflow-qa)
+
+- เพิ่มเมนูหลัก **FundFlow** + Submenu ในแถบเมนูซ้าย: ลูกค้า (ตลาดกองทุน, พอร์ตของฉัน, คำสั่งซื้อขาย) และ Back-office (ภาพรวมการซื้อขาย, ซื้อ/ขาย/สับเปลี่ยน, เปิดบัญชี, สร้างกองทุน, รายงาน .txt)
+- เขียนหน้า `fundflow-qa/public/*.html` ใหม่เป็นหน้า Next.js ที่ `frontend/app/fundflow/**` (คง `data-testid` เดิมไว้ให้สคริปต์ทดสอบใช้ต่อได้)
+- เรียก FundFlow API ผ่าน proxy `/ff-api/*` → `FUNDFLOW_API_URL` (ค่าเริ่มต้น `http://127.0.0.1:3100`) — เปิด API ด้วย `RUN-FUNDFLOW.bat`
+- Login ของ FundFlow (ลูกค้า OTP / พนักงาน RBAC) แยกจาก Login ของ WebQA2026
+- เพิ่มเมนู **Become to QA Engineer** (`/qa-path`): Skill Gap, Roadmap 6 Mode / 12 สัปดาห์, Practice checklist, Quiz และลิงก์ไปสนามฝึกในโปรเจกต์ — ย้ายจากต้นแบบ `index.html` (ความคืบหน้าเก็บใน localStorage ของ Browser)

@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
 import { Suspense, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AppShell, PageHead, Rail } from "@/components/shell";
+import { AppShell, PageHead, Rail, useProjects } from "@/components/shell";
+import { docLabel, inDoc, useDocs, useProjectReqs } from "@/components/doc-coverage";
 import { Highlight } from "@/components/req-bits";
 import { AssumptionLabel, Badge, NFValue } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,23 +36,62 @@ function Inner() {
   const [showResolved, setShowResolved] = useState(false);
   const [answer, setAnswer] = useState<{ row: QRow; text: string; field: string } | null>(null);
   const [resolve, setResolve] = useState<{ c: Conflict; keep: string; reason: string } | null>(null);
+  const router = useRouter();
+  const projects = useProjects();
+  const docs = useDocs(pid);
+  const reqsQ = useProjectReqs(pid);
+  const [docSel, setDocSel] = useState<{ pid: string; id: string } | null>(null);
   const q = useQuery({ queryKey: ["clarifications", pid], queryFn: () => api.get<Center>(`/api/projects/${pid}/clarifications`) });
   const crumbs = projectCrumbs(pid, p.data?.code, ["Clarification & Conflict"]);
   const refresh = async () => { await qc.invalidateQueries({ queryKey: ["clarifications", pid] }); await qc.invalidateQueries({ queryKey: ["dashboard", pid] }); await qc.invalidateQueries({ queryKey: ["requirements", pid] }); };
   const post = async (url: string, body: unknown, msg: string) => { try { await api.post(url, body); toast(msg); await refresh(); return true; } catch (e) { toastError(e); return false; } };
-  if (q.isLoading) return <AppShell crumbs={crumbs}><Loading /></AppShell>;
-  if (q.error || !q.data) return <AppShell crumbs={crumbs}><ErrorState error={q.error} onRetry={() => q.refetch()} /></AppShell>;
-  const qs_ = q.data.questions.filter(x => (!reqFilter || x.requirement_id === reqFilter) && (showResolved || !x.resolved));
-  const as_ = q.data.assumptions.filter(x => !reqFilter || x.requirement_id === reqFilter);
-  const cs = q.data.conflicts;
-  const openQ = q.data.questions.filter(x => !x.resolved).length;
-  const openC = cs.filter(c => c.status === "OPEN").length;
+  // Scope: Project (only those with uploaded documents) → Document, chosen before any status is shown.
+  const withDocs = (projects.data ?? []).filter(x => (x.document_count ?? 0) > 0);
+  const projOptions = withDocs.some(x => x.id === pid) ? withDocs : [...(projects.data ?? []).filter(x => x.id === pid), ...withDocs];
+  const reqById = new Map((reqsQ.data ?? []).map(r => [r.id, r]));
+  const docFromReq = reqFilter ? reqById.get(reqFilter)?.document_id ?? "" : "";
+  const docId = (docSel?.pid === pid ? docSel.id : null) ?? sp.get("doc") ?? docFromReq;
+  const scopeBar = (
+    <div className="card" style={{ marginBottom: 14 }}><div className="toolbar" style={{ margin: 0 }}>
+      <label className="small" htmlFor="cProj"><b>1. Project</b></label>
+      <select id="cProj" data-testid="clar-project" value={pid} onChange={e => router.push(`/projects/${e.target.value}/clarifications`)}>
+        {projOptions.map(x => <option key={x.id} value={x.id}>{x.code} · {x.name}</option>)}</select>
+      <label className="small" htmlFor="cDoc"><b>2. เอกสาร</b></label>
+      {docs.data?.length ? <select id="cDoc" data-testid="clar-doc" value={docId} onChange={e => setDocSel({ pid, id: e.target.value })}>
+        <option value="">— เลือกเอกสาร —</option><option value="ALL">ทุกเอกสารใน Project</option>
+        {docs.data.map(d => <option key={d.id} value={d.id}>{docLabel(d)}</option>)}</select> : <span className="small muted">ยังไม่มีเอกสาร</span>}
+    </div></div>
+  );
+  const head = <PageHead title="Clarification & Conflict Center" sub="เลือก Project และเอกสารที่ Upload ก่อน แล้วระบบจะแสดงสถานะคำถาม Assumption และ Conflict" />;
+  if (docs.isLoading || projects.isLoading) return <AppShell crumbs={crumbs}>{head}{scopeBar}<Loading /></AppShell>;
+  if (!docs.data?.length) return <AppShell crumbs={crumbs}>{head}{scopeBar}<Empty title="Project นี้ยังไม่มีเอกสารที่ Upload" body="อัปโหลด BRS ก่อน ระบบจึงจะสร้างคำถามและตรวจ Conflict ได้" action={can("doc.upload") && <Link className="btn pri" href={`/projects/${pid}/documents/upload`}>อัปโหลด BRS</Link>} /></AppShell>;
+  if (!docId) return <AppShell crumbs={crumbs}>{head}{scopeBar}<Empty title="เลือกเอกสารเพื่อดูสถานะ" body="เลือกเอกสารที่ Upload ในขั้นที่ 2 หรือเลือก 'ทุกเอกสารใน Project'" /></AppShell>;
+  if (q.isLoading || reqsQ.isLoading) return <AppShell crumbs={crumbs}>{head}{scopeBar}<Loading /></AppShell>;
+  if (q.error || !q.data) return <AppShell crumbs={crumbs}>{head}{scopeBar}<ErrorState error={q.error} onRetry={() => q.refetch()} /></AppShell>;
+  const docReqs = (reqsQ.data ?? []).filter(r => inDoc(r, docId));
+  const docReqIds = new Set(docReqs.map(r => r.id));
+  const qAll = q.data.questions.filter(x => docReqIds.has(x.requirement_id) && (!reqFilter || x.requirement_id === reqFilter));
+  const qs_ = qAll.filter(x => showResolved || !x.resolved);
+  const as_ = q.data.assumptions.filter(x => docReqIds.has(x.requirement_id) && (!reqFilter || x.requirement_id === reqFilter));
+  const csAll = q.data.conflicts.filter(c => (c.a && docReqIds.has(c.a.id)) || (c.b && docReqIds.has(c.b.id)));
+  const cs = csAll.filter(c => showResolved || c.status === "OPEN");
+  const openQ = qAll.filter(x => !x.resolved).length;
+  const aDraft = as_.filter(a => a.state === "DRAFT").length;
+  const openC = csAll.filter(c => c.status === "OPEN").length;
+  const ready = docReqs.filter(r => r.status === "APPROVED").length;
   return (
     <AppShell crumbs={crumbs}>
-      <PageHead title="Clarification & Conflict Center" sub="BA ตอบคำถามและ Resolve · QA แก้ไข/ยอมรับ Assumption · Conflict ต้อง Resolve พร้อมเหตุผล (ระบบไม่เลือกฝั่งล่าสุดอัตโนมัติ)" />
+      {head}
+      {scopeBar}
+      <div className="grid g4" style={{ marginBottom: 14 }} data-testid="clar-cards">
+        <a className="card kpi" href="#" onClick={e => { e.preventDefault(); setTab("questions"); }}><div className="v">{openQ}</div><div className="k">คำถามค้าง · Resolve แล้ว {qAll.length - openQ}</div></a>
+        <a className="card kpi" href="#" onClick={e => { e.preventDefault(); setTab("assumptions"); }}><div className="v">{aDraft}</div><div className="k">Assumption รอตรวจ · ทั้งหมด {as_.length}</div></a>
+        <a className="card kpi" href="#" onClick={e => { e.preventDefault(); setTab("conflicts"); }}><div className="v">{openC}</div><div className="k">Conflict ค้าง · ทั้งหมด {csAll.length}</div></a>
+        <Link className="card kpi" href={`/projects/${pid}/requirements?doc=${docId === "ALL" ? "" : docId}`}><div className="v">{ready}/{docReqs.length}</div><div className="k">Requirement พร้อมสร้าง Test Case</div></Link>
+      </div>
       <Rail pid={pid} />
-      {reqFilter && <div className="infobox">กรองเฉพาะ Requirement ที่เลือก · <Link href={`/projects/${pid}/clarifications`}>แสดงทั้งหมด</Link></div>}
-      <Tabs value={tab} onValueChange={setTab} items={[{ value: "questions", label: `Questions (${openQ})` }, { value: "assumptions", label: `Assumptions (${as_.length})` }, { value: "conflicts", label: `Conflicts (${openC})` }]}>
+      {reqFilter && <div className="infobox">กรองเฉพาะ Requirement ที่เลือก · <Link href={`/projects/${pid}/clarifications?doc=${docId}`}>แสดงทั้งหมด</Link></div>}
+      <Tabs value={tab} onValueChange={setTab} items={[{ value: "questions", label: `Questions (${openQ})` }, { value: "assumptions", label: `Assumptions (${aDraft})` }, { value: "conflicts", label: `Conflicts (${openC})` }]}>
         <TabPanel value="questions">
           <div className="toolbar"><label className="row-flex small"><input type="checkbox" checked={showResolved} onChange={e => setShowResolved(e.target.checked)} /> แสดงที่ Resolve แล้ว</label></div>
           {!qs_.length ? <Empty title="ไม่มีคำถามค้าง" body="Requirement ที่ชัดเจนแล้วพร้อม Approve" /> :
