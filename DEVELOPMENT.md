@@ -4,6 +4,8 @@
 
 ต้องมี: Python 3.11/3.12, Node.js 20/22, Git, VS Code
 
+> แนะนำ **Python 3.12** (ตรงกับ Docker image และ CI — `.python-version`) · เครื่องผู้พัฒนาใช้ 3.12.10 · ห้ามใช้ 3.10 หรือต่ำกว่า (ติดตั้ง requirements ไม่ได้)
+
 ```powershell
 cd C:\Cludaemek\WebQA2026
 copy .env.example .env

@@ -1,7 +1,7 @@
-# วิธีสร้าง Project "web qa" ใน claude.ai
+# วิธีตั้งค่า Project ใน claude.ai (ปัจจุบันใช้ชื่อ Project: TeerapatQA — เดิมชื่อ "web qa")
 
 1. เปิด claude.ai → เมนู **Projects** → **Create Project**
-2. ตั้งชื่อ: `web qa`
+2. ตั้งชื่อ: `TeerapatQA` (เดิม `web qa`)
 3. ที่ **Project knowledge** อัปโหลดไฟล์จาก `C:\Cludaemek\WebQA2026`:
    - `01_conversation\CONVERSATION_HISTORY.md`
    - `02_specification\MASTER_PROMPT.md`
@@ -21,8 +21,11 @@ Project: BRS to QA Automation Platform (web qa)
 - ข้อกำหนดหลักอยู่ใน MASTER_PROMPT.md และ PAGE_SPECIFICATION.md
 - ก่อนเริ่มงานต่อ ให้อ่าน PROGRESS.md และ CONVERSATION_HISTORY.md ก่อนเสมอ
 - เว็บไซต์ต้นแบบ (HTML ไฟล์เดียว) สร้างเสร็จแล้ว: https://claude.ai/artifact/3uvE5k8yt4jXaVp9Xdvs53
-- งานถัดไป: สร้าง Repository จริงตามหัวข้อ 42 (frontend/, backend/, worker/, automation-runner/, docker-compose.yml)
-  ให้ไฟล์ทั้งหมดเก็บใต้ C:\Cludaemek\WebQA2026 และ storage อยู่ที่ C:\Cludaemek\WebQA2026\storage
+- สถานะ: Repository จริงตามหัวข้อ 42 สร้างเสร็จแล้ว (frontend/, backend/, worker/, automation-runner/, docker-compose.yml)
+  ไฟล์ทั้งหมดเก็บใต้ C:\Cludaemek\WebQA2026 และ storage อยู่ที่ C:\Cludaemek\WebQA2026\storage
+- งานถัดไปและสถานะล่าสุด: ดู PROGRESS.md (หัวข้อ "คำสั่งถัดไป") และ CHANGELOG.md
+- 03_web_app/ และ 04_source/ = ต้นแบบ HTML/JS (legacy reference) — ห้ามลบ เพราะ backend/tests/test_engine_parity.py ใช้เทียบผล
+- ห้ามใช้ SINGLE_USER_MODE=true ร่วมกับ ALLOW_NETWORK_SHARING=true (backend จะไม่ยอม start)
 - ห้ามเดาค่าที่ไม่ทราบ ให้ใช้ NEEDS_CONFIGURATION และบันทึกใน ASSUMPTIONS.md
 - ใช้ Synthetic Data เท่านั้น ห้ามข้าม CAPTCHA/OTP ห้าม Merge อัตโนมัติ
 - ถ้าวิธีที่เลือกทำให้ไม่ตรง Master Prompt (เช่น ที่เก็บไฟล์ หรือ Tech Stack) ต้องแจ้งและถามก่อนสร้าง

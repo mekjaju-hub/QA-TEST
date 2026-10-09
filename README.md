@@ -85,6 +85,22 @@ WebQA2026/
 | Excel Export | `storage\exports\` (และดาวน์โหลดผ่าน Browser) |
 | Secret ที่ระบบสร้างเอง | `storage\secrets\` (ห้ามแชร์/ห้าม Commit) |
 
+## ทดสอบหน้าเว็บ WebQA2026 (Website Test Suite)
+
+ดับเบิลคลิก `RUN-WEBSITE-TESTS.bat` → เมนู: รัน E2E ทั้งหมด (Playwright, ~5 นาที) / รายโมดูล / เปิดรายงาน / Load-Stress-Spike / Rate-limit / สร้าง Excel Test Case ใหม่
+
+- ครั้งแรกเลือกข้อ `9` (ติดตั้ง Playwright Chromium + build web)
+- Load/Stress ต้องเปิด backend ก่อน (`RUN-DEV.bat`) และใช้รหัสผ่านของ **บัญชีทดสอบ** เท่านั้น
+- รายละเอียด, ผลล่าสุด และตำแหน่งรายงาน: [TESTING.md](TESTING.md) · Test Case: `docs\qa\WEBQA2026_TEST_CASES.xlsx`
+
+## เมนู FundFlow (ต้องมีโปรเจกต์แยก)
+
+เมนู FundFlow ในหน้าเว็บเรียก `/ff-api` → FundFlow Express API (`FUNDFLOW_API_URL`, default `http://127.0.0.1:3100`)
+
+- โค้ด FundFlow **ไม่ได้อยู่ใน Repository นี้** — `RUN-FUNDFLOW.bat` เปิดจากโฟลเดอร์ข้าง ๆ `C:\Cludaemek\fundflow-qa` (และรัน `npm install` ให้ครั้งแรก)
+- ถ้าไม่มีโฟลเดอร์นั้น เมนู FundFlow จะแสดง `FUNDFLOW_UNAVAILABLE` ส่วนอื่นของระบบใช้งานได้ตามปกติ
+- บัญชี Demo ของ FundFlow (`demo` / OTP `123456`) เป็นข้อมูลจำลองสำหรับฝึกเท่านั้น
+
 ## สถานะงาน
 
 ดู [PROGRESS.md](PROGRESS.md) — Stage 1–9, ผล Test และ Acceptance Criteria 40 ข้อ

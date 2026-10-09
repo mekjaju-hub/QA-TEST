@@ -131,4 +131,22 @@ def get_settings() -> Settings:
         s.runner_token = ensure_secret(s.storage_path, "runner_token", s.runner_token, 0o644)  # readable by the runner container
     if s.bind_host in ("0.0.0.0", "::") and not s.allow_network_sharing:
         raise RuntimeError("BIND_HOST=0.0.0.0 เปิดให้ทุกเครื่องใน LAN เข้าถึง — ต้องตั้ง ALLOW_NETWORK_SHARING=true เพื่อยืนยัน (ดู SECURITY.md)")
+    check_network_sharing_safety(s)
     return s
+
+
+DEFAULT_SEED_ADMIN_PASSWORD = "Admin@12345"
+
+
+def check_network_sharing_safety(s: Settings) -> None:
+    """Refuse unsafe combinations when the site is shared on the LAN."""
+    if not s.allow_network_sharing:
+        return
+    if s.single_user_mode:
+        raise RuntimeError("SINGLE_USER_MODE=true ห้ามใช้ร่วมกับ ALLOW_NETWORK_SHARING=true "
+                           "(ไม่บังคับเปลี่ยนรหัสผ่าน admin) — ปิดอย่างใดอย่างหนึ่ง (ดู SECURITY.md)")
+    if s.seed_admin_password == DEFAULT_SEED_ADMIN_PASSWORD:
+        import logging
+        logging.getLogger(__name__).warning(
+            "ALLOW_NETWORK_SHARING=true แต่ SEED_ADMIN_PASSWORD ยังเป็นค่า default — "
+            "ตรวจว่าเปลี่ยนรหัสผ่านของ admin และผู้ใช้ Demo แล้วก่อนเปิดให้เครื่องอื่นเข้าถึง")

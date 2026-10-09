@@ -66,3 +66,13 @@ Backend (8000), PostgreSQL, Redis และ Runner ไม่ถูกเปิ�
 ## รายงานช่องโหว่
 
 แจ้ง Admin ของระบบพร้อม Correlation ID จากหน้าจอ Error
+
+
+## Network sharing safety check (2026-10-09)
+
+เมื่อ `ALLOW_NETWORK_SHARING=true` backend ตรวจตอน start (`app/config.py` → `check_network_sharing_safety`):
+
+- `SINGLE_USER_MODE=true` → **ไม่ยอม start** (โหมดนี้ไม่บังคับเปลี่ยนรหัสผ่าน admin)
+- `SEED_ADMIN_PASSWORD` ยังเป็นค่า default → **แสดง Warning** ให้ตรวจว่าเปลี่ยนรหัสผ่าน admin/Demo แล้ว
+
+Test: `backend/tests/test_network_sharing_safety.py`

@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## [1.7.1] — 2026-10-09 — Safety + Project Instructions
+
+### Security
+- Backend ไม่ยอม start เมื่อ `ALLOW_NETWORK_SHARING=true` + `SINGLE_USER_MODE=true`; แสดง Warning เมื่อเปิด sharing แต่ `SEED_ADMIN_PASSWORD` ยังเป็นค่า default (`app/config.py`, test: `tests/test_network_sharing_safety.py`)
+
+### Docs
+- `PROJECT_INSTRUCTIONS.md` อัปเดตสถานะ (Repository สร้างเสร็จแล้ว, ชื่อ Project TeerapatQA, 03_web_app/04_source = legacy reference) · `SECURITY.md` เพิ่มหัวข้อ Network sharing safety check
+- `README.md` เพิ่มหัวข้อ Website Test Suite และเมนู FundFlow (ระบุว่าโค้ดอยู่นอก Repository: `..\fundflow-qa`)
+- เพิ่ม `.python-version` (3.12) และหมายเหตุเวอร์ชัน Python ใน `DEVELOPMENT.md`
+- Backup ก่อนแก้: `storage/backups/2026-10-09/`
+
 ## [1.7.0] — 2026-10-03 — Website Test Suite (ทดสอบหน้าเว็บ WebQA2026 เอง)
 
 ### Added
