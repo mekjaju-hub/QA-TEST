@@ -256,7 +256,7 @@ export default function WebExplorerPage() {
               {!locked && <RunView run={run.data ?? d.last_run} pending={run.isPending} />}
             </TabPanel>
 
-            {d.kind === "record" && <TabPanel value="auto"><ReplayPanel d={d} /></TabPanel>}
+            {d.kind === "record" && <TabPanel value="auto"><ReplayPanel d={d} /><DataRunPanel d={d} /></TabPanel>}
             {d.kind === "record" && <TabPanel value="script"><ScriptTable rows={d.script ?? []} /></TabPanel>}
             <TabPanel value="learn"><LearnPytest /></TabPanel>
           </Tabs>
@@ -566,8 +566,9 @@ function ScriptTable({ rows, compact }: { rows: ScriptRow[]; compact?: boolean }
 }
 
 type ReplayView = { id: string; status: string; current: number; error?: string | null;
-  results: { no: number; text: string; seg: number; status: string; message?: string; shot?: string; check?: string; ms?: number }[];
-  summary: { total: number; passed: number; failed: number } };
+  results: { no: number; text: string; seg: number; status: string; message?: string; shot?: string; check?: string; ms?: number;
+    pos?: string; click_at?: string }[];
+  summary: { total: number; passed: number; failed: number; warning?: number } };
 
 function ReplayPanel({ d }: { d: Exploration }) {
   const { can } = useAuth();
@@ -583,8 +584,8 @@ function ReplayPanel({ d }: { d: Exploration }) {
   const cancel = useMutation({ mutationFn: () => api.post<ReplayView>(`/api/web-replay/${rid}/cancel`), onError: toastError });
   const v = live.data;
   const running = !!v && ["starting", "running"].includes(v.status);
-  const label: Record<string, string> = { pending: "รอ", running: "กำลังทำ", passed: "ผ่าน", failed: "ไม่ผ่าน", skipped: "ข้าม" };
-  const badge: Record<string, string> = { pending: "PENDING", running: "RUNNING", passed: "PASSED", failed: "FAILED", skipped: "CANCELLED" };
+  const label: Record<string, string> = { pending: "รอ", running: "กำลังทำ", passed: "ผ่าน", failed: "ไม่ผ่าน", skipped: "ข้าม", warning: "เตือน" };
+  const badge: Record<string, string> = { pending: "PENDING", running: "RUNNING", passed: "PASSED", failed: "FAILED", skipped: "CANCELLED", warning: "BLOCKED" };
   return (
     <div style={{ marginTop: 10 }}>
       <div className="infobox small">กด <b>เล่นซ้ำ</b> แล้วหน้าต่าง browser จะเปิดขึ้นบนเครื่องและทำตามที่บันทึกไว้ครบทุกขั้น — ก่อนกดแต่ละปุ่ม/ช่องจะมีกรอบสีแดงบอกว่าอยู่ตรงไหน
@@ -601,19 +602,110 @@ function ReplayPanel({ d }: { d: Exploration }) {
           : <Button variant="success" onClick={() => start.mutate()} loading={start.isPending}>▶ เล่นซ้ำ (Test Automation)</Button>)
           : <span className="small muted">ไม่มีสิทธิ์ Run</span>}
         {v && <span className="small"><Badge status={v.status === "passed" ? "PASSED" : v.status === "failed" || v.status === "error" ? "FAILED" : "RUNNING"} />
-          {" "}ผ่าน {v.summary.passed}/{v.summary.total}{v.summary.failed ? ` · ไม่ผ่าน ${v.summary.failed}` : ""}</span>}
+          {" "}ผ่าน {v.summary.passed}/{v.summary.total}{v.summary.failed ? ` · ไม่ผ่าน ${v.summary.failed}` : ""}{v.summary.warning ? ` · เตือน ${v.summary.warning}` : ""}</span>}
       </div>
       {v?.error && <div className="err-box">{v.error}</div>}
-      {v && <div className="tblwrap"><table><thead><tr><th>#</th><th>ขั้นตอน</th><th>ผล</th><th>ตรวจ / ข้อความ</th><th>ภาพ (กรอบแดง = ตำแหน่ง)</th></tr></thead><tbody>
+      {v && <div className="tblwrap"><table><thead><tr><th>#</th><th>ขั้นตอน</th><th>ตำแหน่งคลิก (x, y)</th><th>ผล</th><th>ตรวจ / ข้อความ</th><th>ภาพ (กรอบแดง = ตำแหน่ง)</th></tr></thead><tbody>
         {v.results.map(r => (
           <tr key={r.no} style={r.status === "running" ? { background: "var(--blue-bg)" } : undefined}>
             <td className="small">{r.no}</td>
             <td className="small"><b>{r.text}</b></td>
+            <td className="mono small">{r.pos ? <>บันทึก: {r.pos}</> : ""}{r.click_at ? <><br />เล่นซ้ำ: {r.click_at}</> : ""}</td>
             <td><Badge status={badge[r.status]}>{label[r.status]}</Badge>{r.ms !== undefined && <><br /><span className="small muted">{r.ms} ms</span></>}</td>
-            <td className="small">{r.status === "failed" ? <span style={{ color: "var(--red)" }}>{r.message}</span> : r.check ?? ""}</td>
+            <td className="small">{r.status === "failed" ? <span style={{ color: "var(--red)" }}>{r.message}</span> : r.status === "warning" ? <span style={{ color: "var(--amber, #b7791f)" }}>{r.message}</span> : r.check ?? ""}</td>
             <td>{r.shot && <AuthImage src={`/api/web-replay/${v.id}/shot/${r.shot}`} alt={`ขั้นที่ ${r.no}`} style={{ width: 220, border: "1px solid var(--line)", borderRadius: 4 }} />}</td>
           </tr>))}
       </tbody></table></div>}
+    </div>
+  );
+}
+
+// ================================================================== Data-driven replay: CSV of new data → replay once per row
+type DataField = { column: string; no: number; action: string; field: string; sample: string };
+type DataRunView = { id: string; status: string; current_row: number; error?: string | null; fields: DataField[];
+  rows: { row: number; values: Record<string, string>; status: string; passed?: number; total?: number; failed_step?: number | null;
+    message?: string; replay_id?: string }[];
+  summary: { total: number; passed: number; failed: number } };
+
+function DataRunPanel({ d }: { d: Exploration }) {
+  const { can } = useAuth();
+  const { toastError } = useToast();
+  const [csv, setCsv] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [pw, setPw] = useState("");
+  const [did, setDid] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
+  const fields = useQuery({ queryKey: ["web-data-fields", d.id],
+    queryFn: () => api.get<{ fields: DataField[]; expect_column: string; max_rows: number }>(`/api/web-explorer/${d.id}/data-fields`) });
+  const live = useQuery({ queryKey: ["web-data-run", did], queryFn: () => api.get<DataRunView>(`/api/web-data-run/${did}`), enabled: !!did,
+    refetchInterval: q => (q.state.data && !["starting", "running"].includes(q.state.data.status) ? false : 1000) });
+  const start = useMutation({ mutationFn: () => api.post<DataRunView>(`/api/web-explorer/${d.id}/data-run`, { csv_text: csv, password: pw || null, slow_ms: 200 }),
+    onSuccess: r => { setDid(r.id); setOpen(null); }, onError: toastError });
+  const cancel = useMutation({ mutationFn: () => api.post<DataRunView>(`/api/web-data-run/${did}/cancel`), onError: toastError });
+  const detail = useQuery({ queryKey: ["web-replay", open], queryFn: () => api.get<ReplayView>(`/api/web-replay/${open}`), enabled: !!open,
+    refetchInterval: q => (q.state.data && !["starting", "running"].includes(q.state.data.status) ? false : 1000) });
+  const v = live.data;
+  const running = !!v && ["starting", "running"].includes(v.status);
+  const needPw = !d.password_saved && d.test_cases.some(t => t.steps.some(st => st.includes("********")));
+  const preview = useMemo(() => csv.replace(/^\ufeff/, "").split(/\r?\n/).filter(l => l.trim()).slice(0, 6), [csv]);
+  const st: Record<string, string> = { warning: "BLOCKED", pending: "PENDING", running: "RUNNING", passed: "PASSED", failed: "FAILED", error: "FAILED", skipped: "CANCELLED", cancelled: "CANCELLED" };
+  const f = fields.data?.fields ?? [];
+  return (
+    <div style={{ marginTop: 24 }}>
+      <h3 style={{ margin: "0 0 6px" }}>ทดสอบด้วยชุดข้อมูลอื่น (Data-driven จาก CSV)</h3>
+      <div className="infobox small">
+        1) ดาวน์โหลด <b>Template CSV</b> (หัวคอลัมน์ = ช่องที่บันทึกไว้, แถวแรก = ค่าตอน Record) · 2) ใส่ข้อมูลชุดใหม่ 1 แถว = 1 รอบ (ช่องว่าง = ใช้ค่าเดิม,
+        Checkbox ใส่ 1/0) · คอลัมน์ <span className="mono">{fields.data?.expect_column ?? "_expect_text"}</span> (ไม่บังคับ) = ข้อความที่ต้องเห็นตอนจบ ·
+        3) อัปโหลด แล้วกด <b>เล่นซ้ำทุกแถว</b> — ระบบกรอกตามช่องเดิมทีละแถว และเก็บผลทุกแถว (ดาวน์โหลดผลเป็น CSV ได้) · ช่องรหัสผ่านไม่อยู่ใน CSV
+      </div>
+      {fields.isLoading ? <Loading /> : f.length === 0 ? <div className="small muted">รายการนี้ไม่มีช่องกรอกข้อมูล</div> : <>
+        <div className="tblwrap" style={{ marginBottom: 10 }}><table><thead><tr><th>คอลัมน์ CSV</th><th>ขั้นที่</th><th>ช่องบนหน้าเว็บ</th><th>ค่าตอน Record</th></tr></thead><tbody>
+          {f.map(x => <tr key={x.column}><td className="mono small">{x.column}</td><td className="small">{x.no}</td>
+            <td className="small">{x.action === "check" ? "☑ " : x.action === "select" ? "▾ " : ""}{x.field}</td><td className="small">{x.sample}</td></tr>)}
+        </tbody></table></div>
+        <div className="row-flex" style={{ gap: 10, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 10 }}>
+          <Button onClick={() => download(`/api/web-explorer/${d.id}/data-template.csv`, `data_template_${d.id}.csv`).catch(toastError)}>⬇ Template CSV</Button>
+          <div className="field" style={{ margin: 0 }}><label htmlFor="dr-file">ไฟล์ข้อมูล (.csv, UTF-8)</label>
+            <input id="dr-file" type="file" accept=".csv,text/csv" onChange={e => {
+              const file = e.target.files?.[0]; if (!file) return;
+              setFileName(file.name);
+              // UTF-8 first; Excel "CSV" on Thai Windows is often windows-874 (TIS-620)
+              file.arrayBuffer().then(b => { try { setCsv(new TextDecoder("utf-8", { fatal: true }).decode(b)); }
+                catch { setCsv(new TextDecoder("windows-874").decode(b)); } }).catch(toastError);
+            }} /></div>
+          {needPw && <div className="field" style={{ margin: 0 }}><label htmlFor="dr-pw">รหัสผ่าน (ใช้ทุกแถว)</label>
+            <input id="dr-pw" type="password" autoComplete="off" value={pw} onChange={e => setPw(e.target.value)} /></div>}
+          {can("run.execute") ? (running
+            ? <Button variant="danger" onClick={() => cancel.mutate()}>หยุด</Button>
+            : <Button variant="success" disabled={!csv} onClick={() => start.mutate()} loading={start.isPending}>▶ เล่นซ้ำทุกแถว</Button>)
+            : <span className="small muted">ไม่มีสิทธิ์ Run</span>}
+          {v && !running && <Button onClick={() => download(`/api/web-data-run/${v.id}/results.csv`, `data_run_${v.id}.csv`).catch(toastError)}>⬇ ผลลัพธ์ CSV</Button>}
+        </div>
+        {preview.length > 0 && !v && <div className="small"><b>{fileName}</b> — พบข้อมูล <b>{Math.max(0, csv.replace(/^\ufeff/, "").split(/\r?\n/).filter(l => l.replace(/[,;\t\s]/g, "")).length - 1)}</b> แถว (1 แถว = 1 รอบ) · ตัวอย่าง
+          <pre className="mono small" style={{ background: "var(--blue-bg)", padding: 8, borderRadius: 4, overflowX: "auto" }}>{preview.join("\n")}</pre></div>}
+      </>}
+      {v?.error && <div className="err-box">{v.error}</div>}
+      {v && <>
+        <div className="small" style={{ margin: "6px 0" }}><Badge status={st[v.status] ?? "RUNNING"} /> ผ่าน {v.summary.passed}/{v.summary.total} แถว
+          {v.summary.failed ? ` · ไม่ผ่าน ${v.summary.failed}` : ""}{running ? ` · กำลังทำแถวที่ ${v.current_row}` : ""}</div>
+        <div className="tblwrap"><table><thead><tr><th>แถว</th>{v.fields.map(x => <th key={x.column}>{x.column}</th>)}<th>ผล</th><th>ขั้นที่ผ่าน</th><th>ข้อความ</th><th></th></tr></thead><tbody>
+          {v.rows.map(r => (
+            <tr key={r.row} style={r.status === "running" ? { background: "var(--blue-bg)" } : undefined}>
+              <td className="small">{r.row}</td>
+              {v.fields.map(x => <td key={x.column} className="small">{r.values[x.column] || <span className="muted">(ค่าเดิม)</span>}</td>)}
+              <td><Badge status={st[r.status]}>{r.status}</Badge></td>
+              <td className="small">{r.total !== undefined ? `${r.passed}/${r.total}` : ""}{r.failed_step ? ` · พังที่ขั้น ${r.failed_step}` : ""}</td>
+              <td className="small" style={{ color: r.message ? "var(--red)" : undefined }}>{r.message}</td>
+              <td>{r.replay_id && <Button onClick={() => setOpen(open === r.replay_id ? null : r.replay_id!)}>{open === r.replay_id ? "ซ่อน" : "ดูทีละขั้น"}</Button>}</td>
+            </tr>))}
+        </tbody></table></div>
+        {open && detail.data && <div className="tblwrap" style={{ marginTop: 8 }}><table><thead><tr><th>#</th><th>ขั้นตอน</th><th>ตำแหน่งคลิก</th><th>ผล</th><th>ตรวจ</th><th>ภาพ</th></tr></thead><tbody>
+          {detail.data.results.map(x => <tr key={x.no}><td className="small">{x.no}</td><td className="small">{x.text}</td>
+            <td className="mono small">{x.click_at ?? x.pos ?? ""}</td><td><Badge status={st[x.status]}>{x.status}</Badge></td>
+            <td className="small">{x.status === "failed" ? <span style={{ color: "var(--red)" }}>{x.message}</span> : x.check ?? ""}</td>
+            <td>{x.shot && <AuthImage src={`/api/web-replay/${detail.data!.id}/shot/${x.shot}`} alt={`ขั้นที่ ${x.no}`} style={{ width: 200, border: "1px solid var(--line)", borderRadius: 4 }} />}</td></tr>)}
+        </tbody></table></div>}
+      </>}
     </div>
   );
 }

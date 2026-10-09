@@ -112,17 +112,33 @@ RECORDER_JS = r"""
     const t = path[0];
     return t && t.closest ? t.closest(CLICKABLE) : null;
   };
-  const sendClick = el => {
+  // the exact mouse point of each click: page (x, y) = from the top-left of the whole page, view (vx, vy) = of the window
+  const ptOf = e => ({ x: Math.round(e.pageX), y: Math.round(e.pageY), vx: Math.round(e.clientX), vy: Math.round(e.clientY) });
+  const markClick = p => {   // crosshair + label at the click point (pointer-events: none → never the click target)
+    try {
+      const root = document.documentElement, mk = (st) => { const d = document.createElement('div'); d.className = '__wqa_pt';
+        Object.assign(d.style, { position: 'fixed', zIndex: 2147483647, pointerEvents: 'none' }, st); root.appendChild(d); return d; };
+      document.querySelectorAll('.__wqa_pt').forEach(n => n.remove());
+      mk({ left: '0px', top: p.vy + 'px', width: '100vw', height: '1px', background: 'rgba(229,56,59,.55)' });
+      mk({ left: p.vx + 'px', top: '0px', width: '1px', height: '100vh', background: 'rgba(229,56,59,.55)' });
+      mk({ left: (p.vx - 7) + 'px', top: (p.vy - 7) + 'px', width: '14px', height: '14px', borderRadius: '50%', border: '3px solid #e5383b' });
+      const t = mk({ left: (p.vx + 12) + 'px', top: (p.vy + 12) + 'px', padding: '2px 6px', borderRadius: '4px', background: '#e5383b',
+        color: '#fff', font: '12px/1.4 monospace' });
+      t.textContent = 'x=' + p.x + ', y=' + p.y;
+      setTimeout(() => document.querySelectorAll('.__wqa_pt').forEach(n => n.remove()), 1500);
+    } catch (_) { /* never break the page */ }
+  };
+  const sendClick = (el, p) => {
     const tag = el.tagName.toLowerCase(), type = (el.getAttribute('type') || '').toLowerCase();
     if (tag === 'input' && (type === 'checkbox' || type === 'radio')) return; // recorded by 'change'
-    send({ type: 'click', el: describe(el) });
+    send({ type: 'click', el: describe(el), pt: p });
   };
   // Listen on `window` in the capture phase = before any handler of the page can stop the event.
   // Some sites act on pointerdown and leave the page before 'click' fires → keep it and send it when the page unloads.
   let pending = null;
-  window.addEventListener('pointerdown', e => { const el = clickTarget(e); pending = el ? { el, d: describe(el) } : null; }, true);
-  window.addEventListener('click', e => { const el = clickTarget(e); pending = null; if (el) sendClick(el); }, true);
-  window.addEventListener('pagehide', () => { if (pending) { send({ type: 'click', el: pending.d, early: true }); pending = null; } }, true);
+  window.addEventListener('pointerdown', e => { const el = clickTarget(e); const p = ptOf(e); markClick(p); pending = el ? { el, d: describe(el), p } : null; }, true);
+  window.addEventListener('click', e => { const el = clickTarget(e); pending = null; if (el) sendClick(el, ptOf(e)); }, true);
+  window.addEventListener('pagehide', () => { if (pending) { send({ type: 'click', el: pending.d, pt: pending.p, early: true }); pending = null; } }, true);
   const valueEvent = el => {
     if (!el || !el.tagName) return null;
     const tag = el.tagName.toLowerCase(), type = (el.getAttribute('type') || '').toLowerCase();
@@ -464,7 +480,7 @@ def _parse(start_url: str, raw: list[dict]) -> list[dict]:
             # a click on a field that was just typed into is noise; double clicks on the same element are recorded once
             if steps and steps[-1]["action"] == "click" and steps[-1]["key"] == repr(ev["el"]["locator"]) and t - steps[-1]["t"] < 400:
                 continue
-            steps.append({"action": "click", "key": repr(ev["el"]["locator"]), "el": ev["el"], "t": t})
+            steps.append({"action": "click", "key": repr(ev["el"]["locator"]), "el": ev["el"], "t": t, **({"pt": ev["pt"]} if ev.get("pt") else {})})
         elif kind == "press":
             steps.append({"action": "press", "key": repr(ev["el"]["locator"]), "el": ev["el"], "t": t})
         elif kind == "dialog":
@@ -523,7 +539,15 @@ def to_steps(start_url: str, raw: list[dict]) -> list[dict]:
     for i, s in enumerate(out, 1):
         s["no"] = i
         s["text"] = s.get("text") or describe_step(s)
+        if pt_text(s):
+            s["pos_text"] = pt_text(s)
     return out
+
+
+def pt_text(s: dict) -> str:
+    """'x=…, y=…' of the recorded mouse point (page coordinates), '' when not recorded (older recordings)."""
+    p = s.get("pt") or {}
+    return f"x={p['x']}, y={p['y']}" if isinstance(p.get("x"), (int, float)) and isinstance(p.get("y"), (int, float)) else ""
 
 
 def el_name(el: dict) -> str:

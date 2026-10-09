@@ -579,7 +579,65 @@ def replay_shot(rid: str, name: str, p: Principal = Depends(require("auto.view")
     if not _re.fullmatch(r"step_\d{1,3}(_fail)?", name):
         raise AppError("NOT_FOUND", "ไม่พบภาพ", status=404)
     st = get_storage()
-    k = _key(rp.eid, f"replay/{name}.png")
+    k = _key(rp.eid, f"{rp.shot_dir}/{name}.png")
     if not st.exists(k):
         raise AppError("NOT_FOUND", "ไม่พบภาพ", status=404)
     return Response(st.read_bytes(k), media_type="image/png")
+
+
+# ================================================================== data-driven replay: CSV of new data → replay once per row
+class DataRunIn(BaseModel):
+    csv_text: str = Field(min_length=1, max_length=2_000_000)
+    password: str | None = Field(default=None, max_length=200)
+    slow_ms: int = Field(default=200, ge=0, le=3000)
+
+
+def _csv_response(text: str, filename: str) -> Response:
+    return Response(text.encode("utf-8"), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@router.get("/web-explorer/{eid}/data-fields")
+def data_fields(eid: str, p: Principal = Depends(require("auto.view"))):
+    d = _load(eid)
+    return {"fields": wrp.data_fields(d.get("recorded_steps", [])), "expect_column": wrp.EXPECT_COL, "max_rows": wrp.MAX_ROWS}
+
+
+@router.get("/web-explorer/{eid}/data-template.csv")
+def data_template(eid: str, p: Principal = Depends(require("auto.view"))):
+    d = _load(eid)
+    if not d.get("recorded_steps"):
+        raise AppError("NOT_REPLAYABLE", "ใช้ชุดข้อมูลได้เฉพาะรายการที่มาจาก 'บันทึกการใช้งาน (Record)'", status=409)
+    return _csv_response(wrp.template_csv(d["recorded_steps"]), f"data_template_{eid}.csv")
+
+
+@router.post("/web-explorer/{eid}/data-run")
+def data_run_start(eid: str, body: DataRunIn, p: Principal = Depends(require("run.execute")), db: Session = Depends(get_db)):
+    d = _load(eid)
+    rows = wrp.parse_csv(body.csv_text, d.get("recorded_steps", []))
+    st = get_storage()
+    run = wrp.DataRun(d, rows, password=body.password or None, slow_ms=body.slow_ms,
+                      shot_writer=lambda folder, name, png: st.write_bytes(_key(eid, f"{folder}/{name}.png"), png))
+    run.result_writer = lambda text: st.write_bytes(_key(eid, f"data/{run.id}/results.csv"), text.encode("utf-8"))
+    run.start()
+    audit(db, p.username, "WEB_DATA_RUN", d["url"][:200], f"rows={len(rows)}", ip=p.ip)
+    db.commit()
+    return run.view()
+
+
+@router.get("/web-data-run/{did}")
+def data_run_status(did: str, p: Principal = Depends(require("auto.view"))):
+    return wrp.get_data_run(did).view()
+
+
+@router.post("/web-data-run/{did}/cancel")
+def data_run_cancel(did: str, p: Principal = Depends(require("run.execute"))):
+    run = wrp.get_data_run(did)
+    run.cancel()
+    return run.view()
+
+
+@router.get("/web-data-run/{did}/results.csv")
+def data_run_results(did: str, p: Principal = Depends(require("auto.view"))):
+    run = wrp.get_data_run(did)
+    return _csv_response(run.results_csv(), f"data_run_{did}.csv")

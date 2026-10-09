@@ -539,6 +539,8 @@ def step_command(s: dict) -> str:
         return f"{loc}.click()"
     if a == "fill":
         if s.get("secret"):
+            if s.get("value"):   # saved on request — each password field keeps its own value (2 logins, 2 passwords)
+                return f"{loc}.fill(os.getenv(\"RECORD_PASSWORD_{s['no']}\") or {q(s['value'])})"
             return f"{loc}.fill(PASSWORD)"
         if s.get("masked"):
             return f"{loc}.fill(os.getenv(\"RECORD_FIELD_{s['no']}\", \"\"))"
@@ -551,14 +553,14 @@ def step_command(s: dict) -> str:
         return f"{loc}.press(\"Enter\")"
     if a == "assert_text":
         if s.get("mode") == "hidden":
-            return f"expect(page.get_by_text({q(s['check'])})).to_have_count(0)"
-        return f"expect(page.get_by_text({q(s['check'])}).first).to_be_visible()"
+            return f"expect(page.get_by_text({q(s['check'])}).filter(visible=True)).to_have_count(0)"
+        return f"expect(page.get_by_text({q(s['check'])}).filter(visible=True).first).to_be_visible()"
     if a == "goto":
         return f"page.goto({q(s['url'])})"
     if a == "dialog":
         return f"assert {q(s['message'])} in dialogs"
     if a == "popup":
-        return f"expect(page.get_by_text(re.compile({q(re.escape(_snippet(s['text'])))})).first).to_be_visible()"
+        return f"expect(page.get_by_text(re.compile({q(re.escape(_snippet(s['text'])))})).filter(visible=True).first).to_be_visible()"
     return ""
 
 

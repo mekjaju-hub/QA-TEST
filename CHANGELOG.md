@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## [1.8.0] — 2026-10-09 — Web Explorer: Click x/y + Data-driven Replay (CSV)
+
+### Added
+- **Click x/y**: ตอน Record แสดงกากบาท + `x=…, y=…` (page coordinates) ที่จุดคลิก และเก็บใน step (`pt`, `pos_text`) · ตอน Replay แสดงตำแหน่งที่บันทึก + ตำแหน่งที่คลิกจริง (`click_at`) ในตารางผล
+- **Data-driven Replay**: `GET /api/web-explorer/{eid}/data-fields`, `GET …/data-template.csv`, `POST …/data-run` (CSV → 1 แถว = 1 รอบ), `GET/POST /api/web-data-run/{id}[/cancel|/results.csv]` · ช่องว่าง = ค่าเดิม, Checkbox 1/0, คอลัมน์ `_expect_text` (ไม่บังคับ), ผลเก็บที่ `storage/explore/web/{eid}/data/{run_id}/results.csv` · สูงสุด 200 แถว · ช่องรหัสผ่านไม่อยู่ใน CSV
+- UI: แท็บ Test Automation → ส่วน "ทดสอบด้วยชุดข้อมูลอื่น" · รองรับ CSV จาก Excel (UTF-8 / windows-874, คั่นด้วย `,` `;` Tab) และแสดงจำนวนแถวก่อนรัน
+- Test: `backend/tests/test_web_data_run.py`
+
+### Fixed (พบจากการใช้งานจริง)
+- ตรวจข้อความ (assert/popup) เลือกตัวที่ซ่อนอยู่ (เช่น Google Translate มี "test" ซ่อน 8 จุด) → ตรวจเฉพาะที่มองเห็น `filter(visible=True)` ทั้งใน Replay และ pytest ที่ generate (`web_testgen.py`)
+- Test Case หนึ่งไม่ผ่านทำให้ Test Case ถัดไปถูกข้ามทั้งหมด → ข้ามเฉพาะ Test Case นั้น แล้วทำ Test Case ถัดไปที่เปิดหน้าของตัวเอง
+- ข้อความที่หน้าเว็บแสดงเอง (popup อัตโนมัติ เช่น error ชั่วคราวตอน Record) ไม่พบตอน Replay → สถานะ "เตือน" (warning) ไม่หยุดการรัน
+- Flow ที่ล็อกอิน 2 ระบบ (รหัสผ่านต่างกัน) Replay ใช้รหัสชุดแรกกับทุกช่อง → แต่ละช่องใช้รหัสที่บันทึกไว้ของตัวเอง (pytest: env `RECORD_PASSWORD_{no}`)
+
+### Verification
+- `tsc --noEmit` ผ่าน · Python syntax ผ่าน · **pytest ยังไม่ได้รันบน Windows** → `storage/backups/2026-10-09-webexplorer/run-tests.bat`
+- Backup ก่อนแก้: `storage/backups/2026-10-09-webexplorer/`
+
+### Known limitations
+- Recording ที่ Test Case แรกบันทึก error ไว้ (เช่น API ยังไม่เปิด) ยังคงอยู่ — ยังไม่มีปุ่มลบขั้นตอน/Test Case
+- บางช่องบันทึกซ้ำ 2 ครั้ง (fill ซ้ำหลังเริ่ม Test Case ใหม่) — เล่นซ้ำได้ แต่ควรรวมในอนาคต
+
 ## [1.7.1] — 2026-10-09 — Safety + Project Instructions
 
 ### Security
